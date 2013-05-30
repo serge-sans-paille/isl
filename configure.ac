@@ -25,6 +25,7 @@ AM_PATH_PYTHON
 AX_CC_MAXOPT
 AX_GCC_WARN_UNUSED_RESULT
 AX_C___ATTRIBUTE__
+AC_CHECK_LIB([pthread], [pthread_create], [AC_SUBST([PTHREAD_LIBS],[-lpthread])], [AC_ERROR([pthread library not found])])
 
 AC_PROG_LIBTOOL
 

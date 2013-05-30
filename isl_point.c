@@ -8,6 +8,7 @@
 #include <isl_val_private.h>
 #include <isl_vec_private.h>
 #include <isl/deprecated/point_int.h>
+#include <assert.h>
 
 isl_ctx *isl_point_get_ctx(__isl_keep isl_point *pnt)
 {
@@ -145,33 +146,6 @@ int isl_point_get_coordinate(__isl_keep isl_point *pnt,
 	return 0;
 }
 
-/* Return the value of coordinate "pos" of type "type" of "pnt".
- */
-__isl_give isl_val *isl_point_get_coordinate_val(__isl_keep isl_point *pnt,
-	enum isl_dim_type type, int pos)
-{
-	isl_ctx *ctx;
-	isl_val *v;
-
-	if (!pnt)
-		return NULL;
-
-	ctx = isl_point_get_ctx(pnt);
-	if (isl_point_is_void(pnt))
-		isl_die(ctx, isl_error_invalid,
-			"void point does not have coordinates", return NULL);
-	if (pos < 0 || pos >= isl_space_dim(pnt->dim, type))
-		isl_die(ctx, isl_error_invalid,
-			"position out of bounds", return NULL);
-
-	if (type == isl_dim_set)
-		pos += isl_space_dim(pnt->dim, isl_dim_param);
-
-	v = isl_val_rat_from_isl_int(ctx, pnt->vec->el[1 + pos],
-						pnt->vec->el[0]);
-	return isl_val_normalize(v);
-}
-
 __isl_give isl_point *isl_point_set_coordinate(__isl_take isl_point *pnt,
 	enum isl_dim_type type, int pos, isl_int v)
 {
@@ -192,58 +166,6 @@ __isl_give isl_point *isl_point_set_coordinate(__isl_take isl_point *pnt,
 
 	return pnt;
 error:
-	isl_point_free(pnt);
-	return NULL;
-}
-
-/* Replace coordinate "pos" of type "type" of "pnt" by "v".
- */
-__isl_give isl_point *isl_point_set_coordinate_val(__isl_take isl_point *pnt,
-	enum isl_dim_type type, int pos, __isl_take isl_val *v)
-{
-	if (!pnt || !v)
-		goto error;
-	if (isl_point_is_void(pnt))
-		isl_die(isl_point_get_ctx(pnt), isl_error_invalid,
-			"void point does not have coordinates", goto error);
-	if (pos < 0 || pos >= isl_space_dim(pnt->dim, type))
-		isl_die(isl_point_get_ctx(pnt), isl_error_invalid,
-			"position out of bounds", goto error);
-	if (!isl_val_is_rat(v))
-		isl_die(isl_point_get_ctx(pnt), isl_error_invalid,
-			"expecting rational value", goto error);
-
-	if (isl_int_eq(pnt->vec->el[1 + pos], v->n) &&
-	    isl_int_eq(pnt->vec->el[0], v->d)) {
-		isl_val_free(v);
-		return pnt;
-	}
-
-	pnt = isl_point_cow(pnt);
-	if (!pnt)
-		goto error;
-	pnt->vec = isl_vec_cow(pnt->vec);
-	if (!pnt->vec)
-		goto error;
-
-	if (isl_int_eq(pnt->vec->el[0], v->d)) {
-		isl_int_set(pnt->vec->el[1 + pos], v->n);
-	} else if (isl_int_is_one(v->d)) {
-		isl_int_mul(pnt->vec->el[1 + pos], pnt->vec->el[0], v->n);
-	} else {
-		isl_seq_scale(pnt->vec->el + 1,
-				pnt->vec->el + 1, v->d, pnt->vec->size - 1);
-		isl_int_mul(pnt->vec->el[1 + pos], pnt->vec->el[0], v->n);
-		isl_int_mul(pnt->vec->el[0], pnt->vec->el[0], v->d);
-		pnt->vec = isl_vec_normalize(pnt->vec);
-		if (!pnt->vec)
-			goto error;
-	}
-
-	isl_val_free(v);
-	return pnt;
-error:
-	isl_val_free(v);
 	isl_point_free(pnt);
 	return NULL;
 }
@@ -346,6 +268,84 @@ error:
 	isl_set_free(set);
 	isl_space_free(fp.dim);
 	return -1;
+}
+
+typedef struct {
+    isl_point volatile *volatile point;
+    pthread_t tid;
+    pthread_mutex_t mutex;
+    isl_union_set *set;
+    int volatile finished;
+} isl_union_set_iter_state ;
+
+static int isl_union_set_iterator(__isl_take isl_point *pnt, __isl_keep isl_union_set_iter_state *user) {
+    assert(!user->point);
+    assert(pnt);
+    while( 1 ) {
+        if(  pthread_mutex_trylock(&user->mutex) == 0 ) {
+            assert(!user->point);
+            user->point = isl_point_copy(pnt);
+            pthread_mutex_unlock(&user->mutex);
+            break;
+        }
+    }
+    while( 1 ) {
+        if(  pthread_mutex_trylock(&user->mutex) == 0 ) {
+            if(user->point == NULL) {
+                pthread_mutex_unlock(&user->mutex);
+                break;
+            }
+            else {
+                pthread_mutex_unlock(&user->mutex);
+            }
+        }
+    }
+    return 1;
+}
+
+static void isl_union_set_foreach_point_wrapper(isl_union_set_iter_state* state) {
+    isl_union_set_foreach_point(state->set, (int (*)(struct isl_point *, void *))isl_union_set_iterator, state);
+    while( 1 ) {
+        if(  pthread_mutex_trylock(&state->mutex) == 0 ) {
+            assert(!state->finished);
+            state->finished = 1;
+            pthread_mutex_unlock(&state->mutex);
+            break;
+        }
+    }
+}
+
+char* isl_union_set_iter(__isl_keep isl_union_set* set, __isl_keep isl_union_set_iter_state ** state) {
+    if(!*state) {
+        *state = malloc(sizeof(**state));
+        (*state)->set = set;
+        (*state)->point = NULL;
+        (*state)->finished = 0;
+        pthread_mutex_init(&(*state)->mutex,NULL);
+        pthread_create(&(*state)->tid, NULL, (void* (*)(void*))isl_union_set_foreach_point_wrapper, *state);
+        pthread_detach((*state)->tid);
+    }
+    while( 1 ) {
+        if(  pthread_mutex_trylock(&(*state)->mutex) == 0 ) {
+            if( (*state)->finished ) {
+                pthread_mutex_destroy(&(*state)->mutex);
+                free(*state);
+                *state=NULL;
+                return strdup("");
+            }
+            else if( (*state)->point ) {
+                extern char* isl_point_to_str(isl_point volatile*);
+                char* res = isl_point_to_str((*state)->point);
+                assert(res);
+                (*state)->point=NULL;
+                pthread_mutex_unlock(&(*state)->mutex);
+                return res;
+            }
+            else {
+                pthread_mutex_unlock(&(*state)->mutex);
+            }
+        }
+    }
 }
 
 /* Return 1 if "bmap" contains the point "point".

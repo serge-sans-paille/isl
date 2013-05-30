@@ -131,7 +131,7 @@ libisl_la_SOURCES = \
 	isl_version.c \
 	isl_vertices_private.h \
 	isl_vertices.c
-libisl_la_LIBADD = @GMP_LIBS@
+libisl_la_LIBADD = @GMP_LIBS@ @PTHREAD_LIBS@
 libisl_la_LDFLAGS = -version-info @versioninfo@ \
 	@GMP_LDFLAGS@
 libisl_la_CPPFLAGS = $(INCLUDES) @GMP_CPPFLAGS@

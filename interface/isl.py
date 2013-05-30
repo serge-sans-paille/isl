@@ -86,11 +86,74 @@ intersection, through the `intersect' method
 >>> S.intersect(T)
 [n] -> { [i] : n = 5 and i >= 1 and i <= 4 }
 
+iteration over a set of points
+>>> s = iter(Set([1,2,3]))
+>>> next(s)
+1
+>>> next(s)
+2
+>>> next(s)
+3
+
+>>> [ x for x in Set([1,2,3])]
+[1, 2, 3]
+
+>>> [ _ for _ in Set(lambda i,j: (0<i)&(i<3) & (0<j)&(j<=i+3)) ]
+[(1, 1), (1, 2), (1, 3), (1, 4), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5)]
+
+Test if a point belongs to a set
+>>> (1,2) in Set(lambda i,j: (0<i)&(i<3) & (0<j)&(j<=i+3))
+True
+>>> (0,2) in Set(lambda i,j: (0<i)&(i<3) & (0<j)&(j<=i+3))
+False
+>>> n = Symbol('n')
+>>> (n+1,n) in Set(lambda i,j: (0<j)&(j<=n))
+True
+>>> (n+1,n) in Set(lambda i,j: (0<j)&(j<n))
+False
+
 Test if a set is empty or not
 >>> bool(Set(lambda i,j: (0<j)&(j<2)))
 True
 >>> 'has something' if Set(lambda i:(i>1)&(i==-i)) else 'empty'
 'empty'
+
+a basic map that performs the identity
+>>> Map(lambda x: x)
+{ [x] -> [x] }
+
+a basic map that performs loop interchange
+>>> Map(lambda x,y: (y,x))
+{ [x, y] -> [y, x] }
+
+A basic Map that duplicates a dimension
+>>> Map(lambda x,y: (x,y,y))
+{ [x, y] -> [x, y, y] }
+
+A basic Map that adds constraints
+>>> Map(lambda x,y: ((x,y), x+y <10 ) )
+{ [x, y] -> [x, y] : y <= 9 - x }
+
+A basic Map that adds constraints from a parameter
+>>> n = Symbol('n')
+>>> Map(lambda x,y: ((x,y), x+y <10 +n ))
+[n] -> { [x, y] -> [x, y] : y <= 9 + n - x }
+
+A basic Map that creates an unconstrained dimension
+>>> Map(lambda x,y: (x, y, Symbol('k')))
+{ [x, y] -> [x, y, k] }
+
+An other Map that creates a constrained dimension
+>>> def mapping(x,y): k = Symbol('k') ; return (x,y,k), (x + y + k <10) & (k>0)
+>>> Map(mapping)
+[k] -> { [x, y] -> [x, y, k] : y <= 9 - k - x and k >= 1 }
+
+An other Map that creates a constrained dimension with a parameter symbol
+>>> n = Symbol('n')
+>>> def mapping(x,y): k = FormalSymbol('k'); return (x,y,k), (x + y + k <n) & (k>0)
+>>> Map(mapping)
+[n] -> { [x, y] -> [x, y, k] : k <= -1 + n - x - y and k >= 1 }
+
 '''
 
 import isl_core as core
@@ -255,6 +318,7 @@ class FormalSymbol(Symbol):
         return set()
 
 # a few hackish method injection
+core.union_set.__iter__ = lambda self: SetIterator(self)
 core.union_set.__repr__ = core.union_set.__str__
 core.union_set.__add__ = core.union_set.union
 core.union_set.__sub__ = core.union_set.subtract
@@ -262,6 +326,25 @@ core.union_set.__contains__ = lambda self, point: bool(self.intersect(Set([point
 core.union_set.__nonzero__ = lambda self : not self.is_empty()
 core.union_map.__call__ = lambda self, other: other.apply(self) if isinstance(other, core.union_set) else other.apply_range(self)
 core.union_map.__repr__ = core.union_map.__str__
+
+core.isl.isl_union_set_iter.restype = core.c_char_p
+core.isl.isl_union_set_iter.argtypes = [ core.c_void_p, core.c_void_p ]
+
+class SetIterator(object):
+    '''
+    Iterator over a set.
+    '''
+
+    def __init__(self, iterated_set):
+        self.iterated_set = iterated_set
+        self.ctx = core.c_void_p(0)
+
+    def next(self):
+        res = core.isl.isl_union_set_iter(self.iterated_set.ptr, ctypes.addressof(self.ctx))
+        if not res :
+            raise StopIteration
+        else:
+            return eval('('+res[1:-1]+')')
 
 def Set(*values):
     '''
