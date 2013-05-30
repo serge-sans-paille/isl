@@ -1,5 +1,6 @@
 AUTOMAKE_OPTIONS = nostdinc
 
+dist_pkgpython_PYTHON = isl.py isl_core.py
 noinst_PROGRAMS = extract_interface
 
 AM_CXXFLAGS = $(CLANG_CXXFLAGS)
@@ -19,13 +20,11 @@ extract_interface_LDADD = \
 	-lclangAnalysis -lclangAST -lclangLex -lclangBasic -lclangDriver \
 	$(CLANG_LIBS) $(CLANG_LDFLAGS)
 
-test: extract_interface
-	./extract_interface$(EXEEXT) $(INCLUDES) $(srcdir)/all.h
-
-isl.py: extract_interface isl.py.top
+isl_core.py: extract_interface isl.py.top
 	(cat $(srcdir)/isl.py.top; \
 		./extract_interface$(EXEEXT) $(INCLUDES) $(srcdir)/all.h) \
-			> isl.py
+			> isl_core.py
 
-dist-hook: isl.py
-	cp isl.py $(distdir)/
+TESTS_ENVIRONMENT = LD_LIBRARY_PATH=$(top_builddir)/.libs PYTHONPATH=. $(PYTHON)
+check_SCRIPTS = isl_core.py
+TESTS = isl.py

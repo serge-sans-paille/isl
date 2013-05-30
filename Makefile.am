@@ -285,11 +285,8 @@ gitversion.h: @GIT_HEAD@
 	$(AM_V_GEN)echo '#define GIT_HEAD_ID "'@GIT_HEAD_VERSION@'"' > $@
 
 install-data-local: $(srcdir)/isl.py
-	@libisl=`sed -ne "/^library_names=/{s/.*='//;s/'$$//;s/ .*//;p;}" \
-		 $(builddir)/libisl.la`; \
-	case $$libisl in \
-	'') echo Cannot find isl library name. GDB bindings not installed.;; \
-	*) echo $(INSTALL_DATA) $(srcdir)/isl.py \
-		$(DESTDIR)$(libdir)/$$libisl-gdb.py; \
-	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"; \
-	$(INSTALL_DATA) $(srcdir)/isl.py $(DESTDIR)$(libdir)/$$libisl-gdb.py; esac
+	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
+	$(INSTALL_DATA) $(srcdir)/isl.py $(DESTDIR)$(libdir)/libisl.so.`echo $(versioninfo) | tr : .`-gdb.py
+
+uninstall-local:
+	$(RM) $(DESTDIR)$(libdir)/libisl.so.`echo $(versioninfo) | tr : .`*-gdb.py
