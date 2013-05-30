@@ -122,8 +122,8 @@ system)
 	if test "$llvm_config_found" != yes; then
 		AC_MSG_ERROR([llvm-config not found])
 	fi
-	CLANG_CXXFLAGS=`$llvm_config --cxxflags`
-	CLANG_LDFLAGS=`$llvm_config --ldflags`
+	CLANG_CXXFLAGS="`$llvm_config --cxxflags` -fno-rtti"
+	CLANG_LDFLAGS="`$llvm_config --ldflags` -fno-rtti"
 	targets=`$llvm_config --targets-built`
 	CLANG_LIBS=`$llvm_config --libs $targets asmparser bitreader support mc`
 	CLANG_PREFIX=`$llvm_config --prefix`

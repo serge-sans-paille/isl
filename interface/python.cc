@@ -202,20 +202,20 @@ static void print_callback(QualType type, int arg)
 
 	printf("        exc_info = [None]\n");
 	printf("        fn = CFUNCTYPE(c_int");
-	for (int i = 0; i < n_arg - 1; ++i) {
+	for (unsigned i = 0; i < n_arg - 1; ++i) {
 		QualType arg_type = fn->getArgType(i);
 		assert(is_isl_type(arg_type));
 		printf(", c_void_p");
 	}
 	printf(", c_void_p)\n");
 	printf("        def cb_func(");
-	for (int i = 0; i < n_arg; ++i) {
+	for (unsigned i = 0; i < n_arg; ++i) {
 		if (i)
 			printf(", ");
 		printf("cb_arg%d", i);
 	}
 	printf("):\n");
-	for (int i = 0; i < n_arg - 1; ++i) {
+	for (unsigned i = 0; i < n_arg - 1; ++i) {
 		string arg_type;
 		arg_type = type2python(extract_type(fn->getArgType(i)));
 		printf("            cb_arg%d = %s(ctx=self.ctx, ptr=cb_arg%d)\n",
@@ -223,7 +223,7 @@ static void print_callback(QualType type, int arg)
 	}
 	printf("            try:\n");
 	printf("                arg%d(", arg);
-	for (int i = 0; i < n_arg - 1; ++i) {
+	for (unsigned i = 0; i < n_arg - 1; ++i) {
 		if (i)
 			printf(", ");
 		printf("cb_arg%d", i);
@@ -453,7 +453,7 @@ void isl_class::print(map<string, isl_class> &classes, set<string> &done)
 		string fullname = (*in)->getName();
 		printf("isl.%s.restype = c_void_p\n", fullname.c_str());
 		printf("isl.%s.argtypes = [", fullname.c_str());
-		for (int i = 0; i < (*in)->getNumParams(); ++i) {
+		for (unsigned i = 0; i < (*in)->getNumParams(); ++i) {
 			ParmVarDecl *param = (*in)->getParamDecl(i);
 			QualType type = param->getOriginalType();
 			if (i)
