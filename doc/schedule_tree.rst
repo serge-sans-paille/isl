@@ -20,7 +20,7 @@ used throughout this document.
 Bands
 -----
 
-A `union map` can be *splitted* into a `union band`, or simply a `band`. A
+A `union map` can be *splitted* into a `band map`, or simply a `band`. A
 `band` is a list of *nodes*. Each node holds a *partial schedule* in the form of
 a `union map` that shares the same iteration domain as the original one. The
 concatenation of the time domains of each node of the band yields the time
@@ -82,7 +82,7 @@ method::
 Trees
 -----
 
-`Union bands` are extended to `union trees` or simply `trees`. A `tree` behaves
+`band maps` are extended to `trees maps` or simply `trees`. A `tree` behaves
 as a `band` except each node can have several children. The children are ordered
 and this ordering represents an implicit time domain. For instance the following
 `union map`::
@@ -331,3 +331,11 @@ Eventually, we want to tile `R` for even more locality::
             {S0[i,j] -> [jt, jp] : 0<=jp<4 & j = 4*jt + jp ; S1[i,j] -> [it, ip] : 0<=ip<4 & i = 4*it + ip} : G
                 { S0[i,j] -> [] } : C0
                 { S1[i,j] -> [] } : C1
+
+The above scenario makes looks simpler in Object-Oriented form::
+
+    >>> t['C1'].interchange([1,0])
+    >>> t['R'].fuse('C0', 'C1', name='F')
+    >>> t['F'].tile((4,4), names=('G',))
+
+Note that in that case, all modifications are done in place.
