@@ -116,6 +116,33 @@ parents through integer indexing::
     >>> tree['A'][0] is tree['B']
     True
 
+Canonic Tree
+------------
+
+A _canonic_ tree can be extracted from the C source code, using labels to
+identify parts of the tree::
+
+    void foo(int N, float x[N][N], float y[N][N]) {
+        for(int i=0; i<N; i++)
+    L0:     for(int j=0; j<N; j++)
+    S0:         x[i][j] = x1[i][j]*2
+
+        for(int i=0; i<N; i++)
+            for(int j=0; j<N; j++)
+    S1:         y[i][j] = x[i][j] + y[j][i];
+    }
+
+All non-loop instructions have to be given a label, used to name the schedule
+input space. Labeled loops are used to decide to split a band into several
+nodes. In the above example, the first loop nest is splitted into two nodes
+because the inner loop is named, while the second loop nest is not splitted
+because it receives no label::
+
+    { S0[i,j] -> [i] } # anonymous
+        { S0[i,j] -> [j] } : L0
+    { S1[i,j] -> [i,j] } # anonymous
+
+
 Tree Properties
 ---------------
 
@@ -280,8 +307,8 @@ Loop distribution is expressed as follows::
 Examples
 --------
 
-This sections lists several (currently one) interactive session using `trees` to
-perform common transformations.
+This sections lists several interactive session using `trees` to perform common
+transformations.
 
 The original code, extracted from the PLUTO paper, is a succession of
 matrix-vector multiply and transposed matrix-vector multiply::
@@ -339,3 +366,86 @@ The above scenario makes looks simpler in Object-Oriented form::
     >>> t['F'].tile((4,4), names=('G',))
 
 Note that in that case, all modifications are done in place.
+
+
+
+`gemver` from the polybench is a more complex case. The input code is the following::
+
+    void kernel_gemver(int n, double alpha, double beta,
+        double A[n][n],
+        double u1[n], double v1[n], double u2[n], double v2[n],
+        double w[n], double x[n], double y[n], double z[n])
+    {
+    C0: for(int i = 0; i < n; i++)
+          for (int j = 0; j < n; j++)
+    S0:     A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+
+    C1: for(int i = 0; i < n; i++)
+          for (int j = 0; j < n; j++)
+    S1:     x[i] = x[i] + beta * A[j][i] * y[j];
+
+    C2: for(int i = 0; i < n; i++)
+    S2:   x[i] = x[i] + z[i];
+
+    C3: for(int i = 0; i < n; i++)
+          for (int j = 0; j < n; j++)
+    S3:     w[i] = w[i] + alpha * A[i][j] * x[j];
+    }
+
+The associated initial schedule tree could be::
+
+    >>> print t
+    {S0[i,j] -> [] ; S1[i,j] -> [] ; S2[i] -> []  ; S3[i,j] -> []}
+        { S0[i,j] -> [i,j] } : C0
+        { S1[i,j] -> [i,j] } : C1
+        { S2[i] -> [i] } : C2
+        { S3[i,j] -> [i,j] } : C3
+    >>> t.name = 'R'
+
+First we want to interchange the loops from `S1`, which can be done using::
+
+    >>> t['C1'].interchange([1,0])
+    >>> print t
+    {S0[i,j] -> [] ; S1[i,j] -> [] ; S2[i] -> []  ; S3[i,j] -> []} : R
+        { S0[i,j] -> [i,j] } : C0
+        { S1[i,j] -> [j,i] } : C1
+        { S2[i] -> [i] } : C2
+        { S3[i,j] -> [i,j] } : C3
+
+Then we have to partially merge all loops together. Let's start by merging `C0` and `C1`::
+
+    >>> t['R'].fuse('C0', 'C1', name='F0')
+    >>> print t
+    {S0[i,j] -> [] ; S1[i,j] -> [] ; S2[i] -> []  ; S3[i,j] -> []} : R
+        { S0[i,j] -> [i,j] ; S1[i,j] -> [j,i]} : F0
+            { S0[i,j] -> [] }
+            { S1[i,j] -> [] }
+        { S2[i] -> [i] } : C2
+        { S3[i,j] -> [i,j] } : C3
+
+Then we can tile `F0`, `C2` and `C3`::
+
+    >>> t['F0'].tile([4,4], name='T0')
+    >>> t['C2'].tile([4], name='T2')
+    >>> t['C3'].tile([4,4], name='T3')
+    >>> print t
+    {S0[i,j] -> [] ; S1[i,j] -> [] ; S2[i] -> []  ; S3[i,j] -> []} : R
+        { S0[i,j] -> [i,ip] : ... ; S1[i,j] -> [j,jp] : ...} : F0
+            { S0[i,j] -> [j,jp] : ... ; S1[i,j] -> [i,ip] : ...} : T0
+                { S0[i,j] -> [] }
+                { S1[i,j] -> [] }
+        { S2[i] -> [i, ip] : ... } : C2
+        { S3[i,j] -> [i,ip] : ...} : C3
+            { S3[i,j] -> [j,jp] : ...} : T3
+
+Then fuse again::
+
+    >>> t['R'].fuse('F0', 'C2', 'C3', name='F1')
+    >>> print t
+    {S0[i,j] -> [] ; S1[i,j] -> [] ; S2[i] -> []  ; S3[i,j] -> []} : R
+        { S0[i,j] -> [i,ip] : ... ; S1[i,j] -> [j,jp]: ... ; S2[i] -> [i,ip]: ... ; S3[i,j] -> [i,ip]: ...  } : F1
+            { S0[i,j] -> [j,jp]: ...  ; S1[i,j] -> [i,ip]: ... } : T0
+                { S0[i,j] -> [] }
+                { S1[i,j] -> [] }
+            { S2[i] -> [] } : C2
+            { S3[i,j] -> [j,jp] : ... } : T3
