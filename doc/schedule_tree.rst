@@ -264,7 +264,7 @@ The two following transformations are parametrized by several nodes.
 
 Loop fusion is expressed as follows::
 
-    fuse(tree, node_or_node_name, *node_or_names_to_fuse, name=None)
+    fuse(tree, node_or_node_name, *node_or_names_to_fuse, name=None, out=None)
 
     >>> t = isl.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
@@ -273,14 +273,21 @@ Loop fusion is expressed as follows::
         { S1[i,j] -> [j] } : C
     ''')
 
-    >>> fuse(t, 'A', 'B', 'C', name= 'D')
+    >>> fuse(t, 'A', 'B', 'C', name='D')
     { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
         { S0[i,j] -> [j] ; S1[i,j] -> [j] } : D
         { S2[i,j] -> [] }
 
+    >>> fuse(t, 'A', 'B', 'C', name='D', out='C')
+    { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
+        { S2[i,j] -> [] }
+        { S0[i,j] -> [j] ; S1[i,j] -> [j] } : D
+
 `*node_or_names_to_fuse` must be direct children of `node_or_node_name`. They
 are fused into the first node of `*node_or_names_to_fuse` that receives the
-given `name`. 
+given `name`. `out` is the child position of the fused node. It is set to the
+first node of `*node_or_names_to_fuse` if not given another value, that must
+still belong to `*node_or_names_to_fuse`.
 
 *Note* this is a limited version of loop fusion...
 
@@ -449,3 +456,156 @@ Then fuse again::
                 { S1[i,j] -> [] }
             { S2[i] -> [] } : C2
             { S3[i,j] -> [j,jp] : ... } : T3
+
+
+`normalize_sample` is a benchmark extracted from the mlp application. The original, inlined C code is the following::
+
+    static void normalizeSample(int subImageRows, int subImageCols,
+                                int imageRows, int imageCols,
+                                uint8_t image[imageRows][imageCols],
+                                int imageOffsetRow, int imageOffsetCol,
+                                int resultRows, int resultCols,
+                                float resultArray[resultRows][resultCols])
+    {
+          /* meanChar { */
+    S0:   float sum = 0;
+
+    L0:   for (int i = 0; i < subImageRows; i++)
+    L1:     for (int j = 0; j < subImageCols; j++) {
+    S1:       sum += image[i + imageOffsetRow][j + imageOffsetCol];
+            }
+
+    S2:   float sampleMean = sum / (subImageRows * subImageCols);
+          /* } */
+
+          /* minChar { */
+    S3:   uint8_t minvalue = 255;
+
+    L2:   for (int i = 0; i < subImageRows; i++)
+    L3:     for (int j = 0; j < subImageCols; j++)
+    S4:       minvalue = min(minvalue, image[i + imageOffsetRow][j+imageOffsetCol]);
+
+    S5:   float sampleMin  = minvalue;
+          /* } */
+
+          /* maxChar { */
+    S6:   uint8_t maxvalue = 0;
+
+    L4:   for (int i = 0; i < subImageRows; i++)
+    L5:     for (int j = 0; j < subImageCols; j++)
+    S7:       maxvalue = max(maxvalue, image[i + imageOffsetRow][j+imageOffsetCol]);
+
+    S8:   float sampleMax = maxvalue;
+          /* } */
+
+    S9:   sampleMax -= sampleMean;
+    S10:  sampleMin -= sampleMean;
+
+    S11:  sampleMax = fmaxf(fabsf(sampleMin), fabsf(sampleMax));
+
+    S12:  if (sampleMax == 0.0)
+            sampleMax = 1.0;
+
+          /* convertFromCharToFloatArray { */
+    S13:  float quotient = 1.0 / sampleMax ,
+                shift = -(1.0 / sampleMax) * sampleMean;
+    L6:   for (int i = 0; i < resultRows; i++)
+    L7:     for (int j = 0; j < resultCols; j++)
+    S14:      resultArray[i][j] = quotient * (float)image[i + imageOffsetRow][j + imageOffsetCol] + shift;
+          /* } */
+    }
+
+
+The associated canonical schedule tree is::
+
+    >>> print t
+    { S0[] -> [] ; S1[i,j] -> [] ;  S2[] -> [] ; S3[] -> [] ; S4[i,j] -> [] ; S5[] -> [] ; S6[] -> [] ; ... } : R
+        { S0[] -> [] }
+        { S1[i,j] -> [i] } : L0
+            { S1[i,j] -> [j] } : L1
+        { S2[] -> [] }
+        { S3[] -> [] }
+        { S4[i,j] -> [i] } : L2
+            { S4[i,j] -> [j] } : L3
+        { S5[] -> [] }
+        { S6[] -> [] }
+        { S7[i,j] -> [i] } : L4
+            { S7[i,j] -> [j] } : L5
+        { S8[] -> [] }
+        { S9[] -> [] }
+        { S10[] -> [] }
+        { S11[] -> [] }
+        { S12[] -> [] }
+        { S13[] -> [] }
+        { S14[i,j] -> [i] } : L6
+            { S14[i,j] -> [j] } : L7
+
+
+The main optimization one can do on this file is to fuse `S1`, `S4` and `S7`, but to do first have to permute a few statements::
+
+    >>> t['R'][1], t['R'][2], t['R'][3], t['R'][4], t['R'][5], t['R'][6] = t['R'][2], t['R'][3], t['R'][5], t['R'][6], t['R'][1], t['R'][4]
+    >>> print t
+        { S0[] -> [] }
+        { S2[] -> [] }
+        { S3[] -> [] }
+        { S5[] -> [] }
+        { S6[] -> [] }
+        { S1[i,j] -> [i] } : L0
+            { S1[i,j] -> [j] } : L1
+        { S4[i,j] -> [i] } : L2
+            { S4[i,j] -> [j] } : L3
+        { S7[i,j] -> [i] } : L4
+            { S7[i,j] -> [j] } : L5
+        { S8[] -> [] }
+        { S9[] -> [] }
+        { S10[] -> [] }
+        { S11[] -> [] }
+        { S12[] -> [] }
+        { S13[] -> [] }
+        { S14[i,j] -> [i] } : L6
+            { S14[i,j] -> [j] } : L7
+
+then we have to concatenate their respective band into a single node::
+
+    >>> for n in ('S1', 'S4', 'S7'):
+            t[n].cat()
+    >>> print t
+    { S0[] -> [] ; S1[i,j] -> [] ;  S2[] -> [] ; S3[] -> [] ; S4[i,j] -> [] ; S5[] -> [] ; S6[] -> [] ; ... } : R
+        { S0[] -> [] }
+        { S2[] -> [] }
+        { S3[] -> [] }
+        { S5[] -> [] }
+        { S6[] -> [] }
+        { S1[i,j] -> [i,j] } : L0
+        { S4[i,j] -> [i,j] } : L2
+        { S7[i,j] -> [i,j] } : L4
+        { S8[] -> [] }
+        { S9[] -> [] }
+        { S10[] -> [] }
+        { S11[] -> [] }
+        { S12[] -> [] }
+        { S13[] -> [] }
+        { S14[i,j] -> [i] } : L6
+            { S14[i,j] -> [j] } : L7
+
+
+finally we can fuse them::
+
+    >>> t['R'].fuse('L0', 'L2', 'L4', name='F0')
+    >>> print t
+    { S0[] -> [] ; S1[i,j] -> [] ;  S2[] -> [] ; S3[] -> [] ; S4[i,j] -> [] ; S5[] -> [] ; S6[] -> [] ; ... } : R
+        { S0[] -> [] }
+        { S2[] -> [] }
+        { S3[] -> [] }
+        { S5[] -> [] }
+        { S6[] -> [] }
+        { S1[i,j] -> [i,j] ; S4[i,j] -> [i,j] ; S7[i,j] -> [i,j] } : F0
+        { S8[] -> [] }
+        { S9[] -> [] }
+        { S10[] -> [] }
+        { S11[] -> [] }
+        { S12[] -> [] }
+        { S13[] -> [] }
+        { S14[i,j] -> [i] } : L6
+            { S14[i,j] -> [j] } : L7
+
