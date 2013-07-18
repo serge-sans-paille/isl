@@ -609,3 +609,57 @@ finally we can fuse them::
         { S14[i,j] -> [i] } : L6
             { S14[i,j] -> [j] } : L7
 
+
+The following example is extracted from the paper *Maximum Loop Distribution and Fusion for Two-level Loops Considering Code Size*::
+
+    R:  for(int i=0; i<N; ++i) {
+    L0:     for(int j=0;j<M; ++j) {
+    S0:         A[i][j]=J[i−1][j]+5;
+    S1:         B[i][j]=A[i][j]*3;
+            }
+    L1:     for(int j=0;j<M;++j) {
+    S2:         C[i][j]=A[i−1][j]+7;
+    S3:         D[i][j]=C[i][j−1]*2;
+    S4:         E[i][j]=D[i][j]+B[i][j+2];
+            }
+        }
+
+Its canonical tree is::
+
+    >>> print t
+    {S0[i,j]->[i] ; S1[i,j]->[i]; S2[i,j]->[i]; S3[i,j]->[i]; S4[i,j]->[i]; S5[i,j]->[i]; S6[i,j]->[i]; S7[i,j]->[i] } : R
+        { S0[i,j]->[j] ;  S1[i,j]->[j] } : L0
+            {S0[i,j] -> [] }
+            {S1[i,j] -> [] }
+        { S2[i,j]->[j] ;  S3[i,j]->[j] ;  S4[i,j]->[j] } : L1
+            {S2[i,j] -> [] }
+            {S3[i,j] -> [] }
+            {S4[i,j] -> [] }
+
+To maximize locality, we have to distribute loop `L1`, then fuse part of it with previous Loop. So first we distribute them::
+
+    >>> t['L1'].distribute(t['L1'][2], names=('D0',))
+    >>> print t
+    {S0[i,j]->[i] ; S1[i,j]->[i]; S2[i,j]->[i]; S3[i,j]->[i]; S4[i,j]->[i]; S5[i,j]->[i]; S6[i,j]->[i]; S7[i,j]->[i] } : R
+        { S0[i,j]->[j] ;  S1[i,j]->[j] } : L0
+            {S0[i,j] -> [] }
+            {S1[i,j] -> [] }
+        { S2[i,j]->[j] ;  S3[i,j]->[j] } : L1
+            {S2[i,j] -> [] }
+            {S3[i,j] -> [] }
+        { S4[i,j]->[j] } : D0
+            {S4[i,j] -> [] }
+
+Then we perform the fusion::
+    >>> t['R'].fuse('L0', 'L1', name='F0')
+    >>> print t
+    {S0[i,j]->[i] ; S1[i,j]->[i]; S2[i,j]->[i]; S3[i,j]->[i]; S4[i,j]->[i]; S5[i,j]->[i]; S6[i,j]->[i]; S7[i,j]->[i] } : R
+        { S0[i,j]->[j] ;  S1[i,j]->[j]; S2[i,j]->[j] ;  S3[i,j]->[j] } : F0
+            {S0[i,j] -> [] }
+            {S1[i,j] -> [] }
+            {S2[i,j] -> [] }
+            {S3[i,j] -> [] }
+        { S4[i,j]->[j] } : D0
+            {S4[i,j] -> [] }
+
+And we manually get the same output as the original paper.
