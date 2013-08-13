@@ -18,7 +18,7 @@ Schedule trees are implemented as a Python layer over ISL, so Python syntax is
 used throughout this document.
 
 Bands
------
+=====
 
 A `union map` can be *splitted* into a `band map`, or simply a `band`. A
 `band` is a list of *nodes*. Each node holds a *partial schedule* in the form of
@@ -77,10 +77,13 @@ method::
     ''')
     >>> band['B']
     { S[i,j] -> [j] } : B
-     
+
+The symmetric method `get_new_name` yields a new unique id, suitable to update
+a node's name.
+
 
 Trees
------
+=====
 
 `band maps` are extended to `trees maps` or simply `trees`. A `tree` behaves
 as a `band` except each node can have several children. The children are ordered
@@ -178,7 +181,9 @@ This function takes a `tree` and a way to identify a node in this tree through
 an instance of the node or its name `node_or_node_name` and transforms the
 partial schedule of this node using the given `isl_union_map`. A new tree is
 returned as the result of this transformation, leaving the original tree
-untouched.
+untouched. If a node name is passed as a parameter, it is automatically
+converted to the *unique* node that holds the same name, if any, otherwise an
+exception is raised.
 
 For instance::
 
@@ -252,8 +257,8 @@ Tiling is expressed as follows::
     ''')
 
     >>> tile(t, 'A', [4,8], names=('D',))
-    { S0[i,j] -> [ip,k] : 0<=k<4 & 4*ip + k = i ; S1[i,j] -> [ip,k] : 0<=k<4 & 4*ip + k = i } : A
-        { S0[i,j] -> [jp,l] : 0<=l<4 & 4*jp + l = j; S1[i,j] -> [jp,l] : 0<=l<4 & 4*jp + l = j}  : D
+    { S0[i,j] -> [it,jt] : it mod 4 =0 and jt mod 4 = 0 and it <= i < it +4 and jt <= j < jt + 8; S1[i,j] -> [it,jt] : it mod 4 =0 and jt mod 4 = 0 and it <= i < it +4 and jt <= j < jt + 8 } : A
+        { S0[i,j] -> [i,j] ; S1[i,j] -> [i,j] }  : D
             { S0[i,j] -> [] } : B
             { S1[i,j] -> [] } : C
 
@@ -312,10 +317,13 @@ Loop distribution is expressed as follows::
 
 
 Examples
---------
+========
 
-This sections lists several interactive session using `trees` to perform common
+This section lists several interactive session using `trees` to perform common
 transformations.
+
+Matrix-vector and Transposed Matrix-vector
+------------------------------------------
 
 The original code, extracted from the PLUTO paper, is a succession of
 matrix-vector multiply and transposed matrix-vector multiply::
@@ -361,8 +369,8 @@ Eventually, we want to tile `R` for even more locality::
     >>> t_2 = tile(t_1, 'F', (4,4), names=('G',))
     >>> print t_2
     {S0[i,j] -> [] ; S1[i,j] -> []} : R
-        {S0[i,j] -> [it,ip] : 0<=ip<4 & i = 4*it + ip; S1[i,j] -> [jt, jp] : 0<=jp<4 & j = 4*jt + jp} : F
-            {S0[i,j] -> [jt, jp] : 0<=jp<4 & j = 4*jt + jp ; S1[i,j] -> [it, ip] : 0<=ip<4 & i = 4*it + ip} : G
+        {S0[i,j] -> [it,jt] : it % 4 = 0 and jt % 4 = 0 and it <= i < it +4 and jt <= j < jt +4; S1[i,j] -> [jt, it] : it % 4 = 0 and jt % 4 = 0 and it <= i < it +4 and jt <= j < jt +4 } : F
+            {S0[i,j] -> [i, j] ; S1[i,j] -> [j, i] } : G
                 { S0[i,j] -> [] } : C0
                 { S1[i,j] -> [] } : C1
 
@@ -374,7 +382,8 @@ The above scenario makes looks simpler in Object-Oriented form::
 
 Note that in that case, all modifications are done in place.
 
-
+Gemver
+------
 
 `gemver` from the polybench is a more complex case. The input code is the following::
 
@@ -457,6 +466,9 @@ Then fuse again::
             { S2[i] -> [] } : C2
             { S3[i,j] -> [j,jp] : ... } : T3
 
+
+Normalize Sample
+----------------
 
 `normalize_sample` is a benchmark extracted from the mlp application. The original, inlined C code is the following::
 
@@ -609,6 +621,9 @@ finally we can fuse them::
         { S14[i,j] -> [i] } : L6
             { S14[i,j] -> [j] } : L7
 
+
+Distribution and Fusion
+-----------------------
 
 The following example is extracted from the paper *Maximum Loop Distribution and Fusion for Two-level Loops Considering Code Size*::
 
