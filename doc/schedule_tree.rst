@@ -17,18 +17,18 @@ partial `union maps`.
 Schedule trees are implemented as a Python layer over ISL, so Python syntax is
 used throughout this document.
 
-Bands
-=====
+Partial Union Maps
+==================
 
-A `union map` can be *splitted* into a `band map`, or simply a `band`. A
-`band` is a list of *nodes*. Each node holds a *partial schedule* in the form of
+A `union map` can be *splitted* into a list of `partial union maps`, refered as
+a `branch`. Each `partial union map` holds a *partial schedule* in the form of
 a `union map` that shares the same iteration domain as the original one. The
-concatenation of the time domains of each node of the band yields the time
-domain of the original `union map`::
+concatenation of the time domains of each `partial union map` of the `branch`
+yields the time domain of the original `union map`::
 
     { S[i,j] -> L[i,0,j] : i>=0 }
 
-is equivalent to the followings bands::
+is equivalent to the following `partial union maps`::
 
     { S[i,j] -> L[i] : i>=0 }
         { S[i,j] -> [0] }
@@ -39,13 +39,13 @@ is equivalent to the followings bands::
         { S[i,j] -> [j] }
 
 
-Note that the constraint applies to all the element of a `band` but is not
+Note that the constraint applies to all the element of the `branch` but is not
 duplicated among them.
 
-Two operations are defined on a band:
+Two operations are defined on a `branch`::
 
-- `split(node, index)` turns the `node` of a `band` of time dimension greater or
-  equal than `index` into a new band with an extra node. The original node gets a
+- `split(node, index)` turns the `node` of a `branch` of time dimension greater or
+  equal than `index` into a new `branch` with an extra node. The original node gets a
   time dimension of `index` and the new node is inserted right after it and olds
   the remaining dimensions::
 
@@ -56,14 +56,14 @@ Two operations are defined on a band:
 - `cat(node, depth=-1)` concatenates a node with its `depth` successors, where
   `-1` means all successors::
 
-    >>> band = isl.Band('''
+    >>> branch = isl.Branch('''
     { S[i,j] -> L[i,0] : i>=0 }
         { S[i,j] -> [j] }
     ''')
-    >>> cat(band, 1)
+    >>> cat(branch, 1)
     { S[i,j] -> L[i,0,j] : i>=0 }
 
-Each node of a band can have an optional name::
+Each node of a `branch` can have an optional name::
 
     { S[i,j] -> L[i,0] : i>=0 } : A
         { S[i,j] -> [j] } : B
@@ -71,11 +71,11 @@ Each node of a band can have an optional name::
 The name can be used to refer to the node directly through the `__getitem__`
 method::
 
-    >>> band = isl.Band('''
+    >>> branch = isl.Branch('''
     { S[i,j] -> L[i,0] : i>=0 } : A
         { S[i,j] -> [j] } : B
     ''')
-    >>> band['B']
+    >>> branch['B']
     { S[i,j] -> [j] } : B
 
 The symmetric method `get_new_name` yields a new unique id, suitable to update
@@ -85,14 +85,14 @@ a node's name.
 Trees
 =====
 
-`band maps` are extended to `trees maps` or simply `trees`. A `tree` behaves
-as a `band` except each node can have several children. The children are ordered
+`Branches` are extended to `trees maps` or simply `trees`. A `tree` behaves
+as a `branch` except that each node can have several children. The children are ordered
 and this ordering represents an implicit time domain. For instance the following
 `union map`::
 
     { S0[i,j] -> [i,0,j] ; S1[i,j] -> [i,1,j]}
 
-Can be turned into the `band`::
+Can be turned into the `branch`::
 
     { S0[i,j] -> [i] ; S1[i,j] -> [i] }
         { S0[i,j] -> [0,j] ; S1[i,j] -> [1,j] }
@@ -105,9 +105,9 @@ Which can itself be represented as a `tree`::
 
 The three above representation defines the same mapping.
 
-If all the nodes of a `tree` have a single child, then the `tree` is a `band`.
+If all the nodes of a `tree` have a single child, then the `tree` is a `branch`.
 
-Similarly to the nodes of a `band`, the nodes of a `tree` can be named and
+Similarly to the nodes of a `list`, the nodes of a `tree` can be named and
 retrieved through their name. Additionally, they can be retrieved from their
 parents through integer indexing::
 
@@ -136,7 +136,7 @@ identify parts of the tree::
     }
 
 All non-loop instructions have to be given a label, used to name the schedule
-input space. Labeled loops are used to decide to split a band into several
+input space. Labeled loops are used to decide to split a `branch` into several
 nodes. In the above example, the first loop nest is splitted into two nodes
 because the inner loop is named, while the second loop nest is not splitted
 because it receives no label::
@@ -213,7 +213,7 @@ Loop interchange is expressed as follows::
     ''')
     >>> interchange(t, 'A', (2, 0, 1))
     { S0[i,j,k,l] -> [k,i,j] } : A
-            { S0[i,j,k,l] -> [] }''')
+            { S0[i,j,k,l] -> [l] }''')
 
 If the length of `dimension_permutation` is lower than the number of dimensions
 of the time domain of the selected node, the remaining dimensions are untouched.
@@ -577,7 +577,7 @@ The main optimization one can do on this file is to fuse `S1`, `S4` and `S7`, bu
         { S14[i,j] -> [i] } : L6
             { S14[i,j] -> [j] } : L7
 
-then we have to concatenate their respective band into a single node::
+then we have to concatenate their respective branch into a single node::
 
     >>> for n in ('S1', 'S4', 'S7'):
             t[n].cat()
