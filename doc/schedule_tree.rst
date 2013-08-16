@@ -42,7 +42,7 @@ is equivalent to the following `partial union maps`::
 Note that the constraint applies to all the element of the `branch` but is not
 duplicated among them.
 
-Two operations are defined on a `branch`::
+Two operations are defined on a `branch`:
 
 - `split(node, index)` turns the `node` of a `branch` of time dimension greater or
   equal than `index` into a new `branch` with an extra node. The original node gets a
@@ -203,9 +203,22 @@ tree representation that allows fro partial manipulation of the schedules.
 
 Several functions are provided to make it easier to use common transformations.
 
-Loop interchange is expressed as follows::
+Interchange
+~~~~~~~~~~~
+
+Intechange permutes the dimensions of all `partial schedules` of a node. Its
+signature is::
 
     interchange(tree, node_or_node_name, dimension_permutation)
+
+Where `tree` is the base tree being modified, `node_or_node_name` is a node
+from `tree`, or the name of a node from `tree`, and `dimension_permutation` is
+a list of integers ranging from `0` to the number of dimensions of the time
+domain of the selected node minus 1.  If the length of `dimension_permutation`
+is lower than the number of dimensions of the time domain of the selected node,
+the remaining dimensions are untouched.
+
+Here is a sample usage::
 
     >>> t = isl.Tree('''
     { S0[i,j,k,l] -> [i,j,k] } : A
@@ -215,12 +228,22 @@ Loop interchange is expressed as follows::
     { S0[i,j,k,l] -> [k,i,j] } : A
             { S0[i,j,k,l] -> [l] }''')
 
-If the length of `dimension_permutation` is lower than the number of dimensions
-of the time domain of the selected node, the remaining dimensions are untouched.
 
-Index set splitting is expressed as follows::
+Index set split
+~~~~~~~~~~~~~~~
+
+Index set split splits the time domain of all `partial schedules` of a node
+according to the given map. Its signature is::
 
     index_set_split(tree, node_or_node_name, isl_union_map, names=None)
+
+Where `tree` is the base tree being modified, `node_or_node_name` is a node
+from `tree`, or the name of a node from `tree`, `isl_union_map` is an
+application from the node time domain to the node time domain that specifies
+the splitting constraint and `names` is an optionnal sequence of string used to
+name newly created nodes.
+
+Here is a sample usage::
 
     >>> t = isl.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] } : A
@@ -246,9 +269,19 @@ Index set splitting is expressed as follows::
 creates two new nodes. The optional `names` argument makes it possible to give
 names to these node
 
-Tiling is expressed as follows::
+Tile
+~~~~
+
+Tile performs a rectangular tiling of the `partial schedules` of a given node. Its signature is::
 
     tile(tree, node_or_node_name, tile_sizes, names=None)
+
+Where `tree` is the base tree being modified, `node_or_node_name` is a node
+from `tree`, or the name of a node from `tree`, `tile_sizes` is a sequence of
+integers that specifies the tile dimension and `names` is an optionnal sequence
+of string used to name newly created nodes.
+
+Here is a sample usage::
 
     >>> t = isl.Tree('''
     { S0[i,j] -> [i,j] ; S1[i,j] -> [i,j] } : A
@@ -262,14 +295,25 @@ Tiling is expressed as follows::
             { S0[i,j] -> [] } : B
             { S1[i,j] -> [] } : C
 
-*Note*: This only allows rectangular tiling...
 
+Fuse
+~~~~
 
-The two following transformations are parametrized by several nodes.
-
-Loop fusion is expressed as follows::
+Fuse performs the union of the `partial schedules` among several nodes. Its signature is::
 
     fuse(tree, node_or_node_name, *node_or_names_to_fuse, name=None, out=None)
+
+Where `tree` is the base tree being modified, `node_or_node_name` is a node
+from `tree`, or the name of a node from `tree`, that contains the nodes to
+fuse. `*node_or_names_to_fuse` is a sequence of nodes from `tree`, or the names
+of nodes from `tree` that are direct children of `node_or_node_name` and the
+actual nodes to fuse. `name` is the optional name of the new node that contains
+the fused node. `out` is the child position of the fused node. It is set to
+the first node of `*node_or_names_to_fuse` if not given another value, that
+must still refer to a node in `*node_or_names_to_fuse`.
+
+Here is a sample usage::
+
 
     >>> t = isl.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
@@ -288,18 +332,25 @@ Loop fusion is expressed as follows::
         { S2[i,j] -> [] }
         { S0[i,j] -> [j] ; S1[i,j] -> [j] } : D
 
-`*node_or_names_to_fuse` must be direct children of `node_or_node_name`. They
-are fused into the first node of `*node_or_names_to_fuse` that receives the
-given `name`. `out` is the child position of the fused node. It is set to the
-first node of `*node_or_names_to_fuse` if not given another value, that must
-still belong to `*node_or_names_to_fuse`.
 
 *Note* this is a limited version of loop fusion...
 
-Loop distribution is expressed as follows::
+Distribute
+~~~~~~~~~~
+
+Distribute distributes the children of a node into several nodes. Its signature
+is::
 
     distribute(tree, node_or_node_name, *node_or_names_to_distribute, names=None)
             
+Where `tree` is the base tree being modified, `node_or_node_name` is a node
+from `tree`, or the name of a node from `tree`, containing the nodes to
+distribute. `*node_or_names_to_distribute` is a squence of nodes that are
+direct hildren of `node_or_node_name` and that are to be distributed. `names`,
+if given, is used to give a name to the nodes resulting from the distribution.
+
+Here is a sample usage::
+
     >>> t = isl.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
         { S0[i,j] -> [j] } : B
