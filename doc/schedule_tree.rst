@@ -15,7 +15,12 @@ Schedule trees, or `tree maps` provides a way to describe and manipulate
 partial `union maps`.
 
 Schedule trees are implemented as a Python layer over ISL, so Python syntax is
-used throughout this document.
+used throughout this document. They are defined in the `schedule_tree` package.
+In the following, it is assumed that the following imports have been run::
+
+    import isl
+    import schedule_tree as st
+
 
 Partial Union Maps
 ==================
@@ -49,19 +54,20 @@ Two operations are defined on a `branch`:
   time dimension of `index` and the new node is inserted right after it and olds
   the remaining dimensions::
 
-    >>> split('{ S[i,j] -> L[i,0,j] : i>=0 }', 2)
+    >>> branch = st.Branch('{ S[i,j] -> L[i,0,j] : i>=0 }')
+    >>> st.Branch.split(branch, 2)
     { S[i,j] -> L[i,0] : i>=0 }
         { S[i,j] -> [j] }
 
 - `cat(node, depth=-1)` concatenates a node with its `depth` successors, where
   `-1` means all successors::
 
-    >>> branch = isl.Branch('''
+    >>> branch = st.Branch('''
     { S[i,j] -> L[i,0] : i>=0 }
-        { S[i,j] -> [j] }
+        { S[i,j] -> [j] : i <= 4}
     ''')
-    >>> cat(branch, 1)
-    { S[i,j] -> L[i,0,j] : i>=0 }
+    >>> st.Branch.cat(branch, 1)
+    { S[i,j] -> L[i,0,j] : i>=0 and i<= 4}
 
 Each node of a `branch` can have an optional name::
 
@@ -71,7 +77,7 @@ Each node of a `branch` can have an optional name::
 The name can be used to refer to the node directly through the `__getitem__`
 method::
 
-    >>> branch = isl.Branch('''
+    >>> branch = st.Branch('''
     { S[i,j] -> L[i,0] : i>=0 } : A
         { S[i,j] -> [j] } : B
     ''')
@@ -103,7 +109,7 @@ Which can itself be represented as a `tree`::
         { S0[i,j] -> [j] }
         { S1[i,j] -> [j] }
 
-The three above representation defines the same mapping.
+The three above representation define the same mapping.
 
 If all the nodes of a `tree` have a single child, then the `tree` is a `branch`.
 
@@ -111,13 +117,28 @@ Similarly to the nodes of a `list`, the nodes of a `tree` can be named and
 retrieved through their name. Additionally, they can be retrieved from their
 parents through integer indexing::
 
-    >>> tree = isl.Tree('''
+    >>> tree = st.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] } : A
         { S0[i,j] -> [j] } : B
         { S1[i,j] -> [j] } : C
     ''')
     >>> tree['A'][0] is tree['B']
     True
+
+Additionally, a `Tree` holds a `flat` method that turns a `tree` into an `union_map`. Its signature is::
+
+    flat(tree)
+
+Here is a sample usage::
+
+    >>> t = st.Tree('''
+    { S0[i,j] -> [i]  : i < 5; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
+            { S0[i,j] -> [j]} : B
+            { S2[i,j] -> [] }
+            { S1[i,j] -> [j] } : C
+    ''')
+    >>> t.flat()
+    { S1[i, j] -> [0, i, 2, j]; S2[i, j] -> [0, i, 1]; S0[i, j] -> [0, i, 0, j] : i <= 4 }
 
 Canonic Tree
 ------------
@@ -187,7 +208,7 @@ exception is raised.
 
 For instance::
 
-    >>> t = isl.Tree('''
+    >>> t = st.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] } : A
             { S0[i,j] -> [j] }
             { S1[i,j] -> [j] }
@@ -206,7 +227,7 @@ Several functions are provided to make it easier to use common transformations.
 Interchange
 ~~~~~~~~~~~
 
-Intechange permutes the dimensions of all `partial schedules` of a node. Its
+Intechange permutes the dimensions of the `partial schedule` of a node. Its
 signature is::
 
     interchange(tree, node_or_node_name, dimension_permutation)
@@ -220,7 +241,7 @@ the remaining dimensions are untouched.
 
 Here is a sample usage::
 
-    >>> t = isl.Tree('''
+    >>> t = st.Tree('''
     { S0[i,j,k,l] -> [i,j,k] } : A
             { S0[i,j,k,l] -> [l] }
     ''')
@@ -232,20 +253,20 @@ Here is a sample usage::
 Index set split
 ~~~~~~~~~~~~~~~
 
-Index set split splits the time domain of all `partial schedules` of a node
+Index set split splits the time domain of the `partial schedule` of a node
 according to the given map. Its signature is::
 
-    index_set_split(tree, node_or_node_name, isl_union_map, names=None)
+    index_set_split(tree, node_or_node_name, splitter, names=None)
 
 Where `tree` is the base tree being modified, `node_or_node_name` is a node
-from `tree`, or the name of a node from `tree`, `isl_union_map` is an
+from `tree`, or the name of a node from `tree`, `splitter` is an
 application from the node time domain to the node time domain that specifies
 the splitting constraint and `names` is an optionnal sequence of string used to
 name newly created nodes.
 
 Here is a sample usage::
 
-    >>> t = isl.Tree('''
+    >>> t = st.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] } : A
         { S0[i,j] -> [j] } : B
         { S1[i,j] -> [j] } : C
@@ -265,25 +286,21 @@ Here is a sample usage::
             { S0[i,j] -> [j] : i >= 4} :D
         { S1[i,j] -> [j] } : C
 
-`isl_union_map` is used to partition the time domain. This transformation
-creates two new nodes. The optional `names` argument makes it possible to give
-names to these node
-
 Tile
 ~~~~
 
-Tile performs a rectangular tiling of the `partial schedules` of a given node. Its signature is::
+Tile performs a rectangular tiling of the `partial schedule` of a given node. Its signature is::
 
-    tile(tree, node_or_node_name, tile_sizes, names=None)
+    tile(tree, node_or_node_name, tile_sizes, name=None)
 
 Where `tree` is the base tree being modified, `node_or_node_name` is a node
 from `tree`, or the name of a node from `tree`, `tile_sizes` is a sequence of
-integers that specifies the tile dimension and `names` is an optionnal sequence
-of string used to name newly created nodes.
+integers that specifies the tile dimension and `name` is an optionnal name for
+the newly created node that holds the inner tile.
 
 Here is a sample usage::
 
-    >>> t = isl.Tree('''
+    >>> t = st.Tree('''
     { S0[i,j] -> [i,j] ; S1[i,j] -> [i,j] } : A
         { S0[i,j] -> [] } : B
         { S1[i,j] -> [] } : C
@@ -299,23 +316,24 @@ Here is a sample usage::
 Fuse
 ~~~~
 
-Fuse performs the union of the `partial schedules` among several nodes. Its signature is::
+Fuse performs the union of the `partial schedule` among several nodes. Its signature is::
 
-    fuse(tree, node_or_node_name, *node_or_names_to_fuse, name=None, out=None)
+    fuse(tree, node_or_node_name, *node_or_names_to_fuse, name=None, out=0)
 
 Where `tree` is the base tree being modified, `node_or_node_name` is a node
 from `tree`, or the name of a node from `tree`, that contains the nodes to
 fuse. `*node_or_names_to_fuse` is a sequence of nodes from `tree`, or the names
 of nodes from `tree` that are direct children of `node_or_node_name` and the
 actual nodes to fuse. `name` is the optional name of the new node that contains
-the fused node. `out` is the child position of the fused node. It is set to
-the first node of `*node_or_names_to_fuse` if not given another value, that
-must still refer to a node in `*node_or_names_to_fuse`.
+the fused node. `out` is the child position of the fused node. It is set to the
+first node of `*node_or_names_to_fuse` if not given another value, either an
+index, a node or a name, it must still refer to a node in
+`*node_or_names_to_fuse`.
 
 Here is a sample usage::
 
 
-    >>> t = isl.Tree('''
+    >>> t = st.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
         { S0[i,j] -> [j] } : B
         { S2[i,j] -> [] }
@@ -346,12 +364,12 @@ is::
 Where `tree` is the base tree being modified, `node_or_node_name` is a node
 from `tree`, or the name of a node from `tree`, containing the nodes to
 distribute. `*node_or_names_to_distribute` is a squence of nodes that are
-direct hildren of `node_or_node_name` and that are to be distributed. `names`,
+direct children of `node_or_node_name` and that are to be distributed. `names`,
 if given, is used to give a name to the nodes resulting from the distribution.
 
 Here is a sample usage::
 
-    >>> t = isl.Tree('''
+    >>> t = st.Tree('''
     { S0[i,j] -> [i] ; S1[i,j] -> [i] ; S2[i,j] -> [i]} : A
         { S0[i,j] -> [j] } : B
         { S2[i,j] -> [] }
@@ -359,12 +377,13 @@ Here is a sample usage::
     ''')
     
     >>> distribute(t, 'A', 'B', 'C', names=('D', 'E'))
-    { S0[i,j] -> [i] } : D
-        { S0[i,j] -> [j] } : B
-    { S2[i,j] -> [i]} : A
-        { S2[i,j] -> [] }
-    { S1[i,j] -> [i] } : E
-        { S1[i,j] -> [j] } : C
+    { S0[_0, _1] -> []; S2[_0, _1] -> []; S1[_0, _1] -> [] }
+        { S0[_0, _1] -> [o0] : o0 <= 4 }: D
+            { S0[i, j] -> [j] }: B
+        { S2[i, j] -> [i] }: A
+            { S2[i, j] -> [] }
+        { S1[_0, _1] -> [o0] }: E
+            { S1[i, j] -> [j] }: C
 
 
 Examples

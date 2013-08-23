@@ -327,8 +327,14 @@ core.union_set.__nonzero__ = lambda self : not self.is_empty()
 core.union_map.__call__ = lambda self, other: other.apply(self) if isinstance(other, core.union_set) else other.apply_range(self)
 core.union_map.__repr__ = core.union_map.__str__
 
+class ptr(object):
+    def __init__(self, value):
+        self.ptr = value
+
 core.isl.isl_union_set_iter.restype = core.c_char_p
 core.isl.isl_union_set_iter.argtypes = [ core.c_void_p, core.c_void_p ]
+core.map.in_space_name = lambda self: str(ctypes.cast(self.get_tuple_name(ptr(2)), ctypes.c_char_p).value) if ctypes.cast(self.get_tuple_name(ptr(2)), ctypes.c_char_p).value else ""
+core.map.out_space_name = lambda self: str(ctypes.cast(self.get_tuple_name(ptr(3)), ctypes.c_char_p).value) if ctypes.cast(self.get_tuple_name(ptr(3)), ctypes.c_char_p).value else ""
 
 class SetIterator(object):
     '''
