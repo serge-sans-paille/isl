@@ -1,0 +1,227 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\usepackage{acronym}
+\acrodef{ISL}{Integer Set Library}
+
+\title{Seeds for a Schedule Tree} % Thcs Sven
+\author{Serge Guelton, Sven Verdoolaeg, Albert Cohen}
+
+\begin{document}
+
+\maketitle
+
+\section*{Motivations}
+
+This document formalizes the design and some use cases of \emph{schedule
+trees}, a refinement to the concept of \emph{schedule} used in the \ac{ISL}. The
+benefits of using a tree representation over a flat representation for a
+schedule is that it makes it easier to manipulate part of a schedule, for
+instance to transform only the inner domain of a schedule while leaving the
+outer domain untouched.
+
+In the scope of heterogeneous computing, a tree representation also makes sense
+as part of the schedule maps to computations done on a given processor while
+other parts map to computations done on another piece of hardware. Specific
+transformations can be applied on a sub tree depending on the target
+accelerator it will ultimately maps to. Likewise a specific code generator can
+be used to process a sub tree.
+
+When analysis code that uses third-party libraries, it may be difficult to
+compute the original schedule of a piece of code as it requires some kind of
+inter procedural analysis. Using a tree representation, one can easily combine
+the pre-computed schedule of library functions with the schedule of the call
+site.
+
+\section{Formal Definition}
+
+Let $\mathcal{U}$ be the domain of all union maps and $\mathcal{T}$ the domain
+of all schedule trees, defined as:
+
+\[
+    \begin{array}{lcl}
+        \mathcal{T}_k &=& \{ <u, v> | u \in \mathcal{U}, v \in \mathcal{T}^k, k \ge 0 \} \\
+        \mathcal{T} &=& U_{k=0}^\infty \mathcal{T}_k\\
+    \end{array}
+\]
+
+\noindent \emph{i.e.}\ a schedule tree holds a union map and any number of children that also are schedule trees.
+
+\subsection{Tree to Union Maps}
+
+Given any schedule tree, we define a flattening operation $\text{flat}$
+
+\[
+    \text{flat}: \mathcal{T} \rightarrow \mathcal{U}
+\]
+
+\noindent such that
+
+\[
+    \begin{array}{lcl}
+        \text{flat}(<u, <> >) &=& u \\
+        \text{flat}(<u, <v_0, \ldots, v_k> >) &=& \text{range\_product}(u, U_{k=0}^{k=n} \text{flat}(\text{append\_dim}(k, v_k)) \\
+    \end{array}
+\]
+
+\noindent where $\text{range\_product}$ pefrorms a flat range product between to elements of $\mathcal{U}$ and $\text{append\_dim}$ appends a constant dimension to the out space of a schedule:
+
+\[
+    \text{range\_product}(A \rightarrow B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
+\]
+
+\noindent and
+
+\[
+    \text{append\_dim}(k, <A \rightarrow B, v>) \rightarrow < A \rightarrow (\{k\} \times B), v >
+\]
+
+\subsubsection*{Example}
+
+For instance, let $t$ be a simple tree:
+
+\[
+    \begin{array}{lcll}
+        t &=& \{ &\\
+          & &    & \{[i,j] \rightarrow [i] \},\\
+          & &    & \quad\{ \{ [i,j] \rightarrow [j] \} \}\\
+          & &    & \quad\{ \{ [i,j] \rightarrow [j] \} \}\\
+          & & \} &\\
+    \end{array}
+\]
+
+Flattening $t$ turns it into a regular union map, where the ordering of the children of the root tree is made explicit:
+
+\[
+    \text{flat}(t) = \{ [i,j] \rightarrow [i,0,j] ; [i,j] \rightarrow [i,1,j] \}
+\]
+
+\subsection{Union Maps to Tree}
+
+{
+    \raggedleft\emph{I'd like to define a function that turns a union map into a tree, automatically spawning children when all the value of a dimension are integer singletons}
+}
+
+\[
+    \text{split}: \mathcal{U} \rightarrow \mathcal{T}
+\]
+
+
+\section{Schedule Trees Transformations}
+
+The primary interest of a tree representation for schedules is that a part of
+the schedule can be updated while leaving the other parts untouched. For instance, consider the following schedule:
+
+\[
+    s = \{ S_0[i,j,k,l] -> [i,j,0,k,l] ; S_1[i,j,k] -> [i,j,1,k] \}
+\]
+
+If we want to permute the first two first output dimensions $i, j$ for the maps
+$S_0, S_1$, we don't care much about the remaining dimensions. Yet we have to
+specifiy them in the schedule transformation:
+
+\[
+    p = \{ S_0[i,j,o_0,o_1,o_2] -> [j,i,o_0,o_1,o_2] ; S_1[i,j,o_0, o_1] -> [j,i,o_0,o_1] \}
+\]
+
+\noindent which is particularly tedious. Using a tree reprensentation $t_s$ for $s$, one could get:
+
+\[
+    \begin{array}{lcll}
+        t_s &=& \{ &\\
+            & &    & \{S_0[i,j,k,l] \rightarrow [i,j] ; \{S_1[i,j,k,l] \rightarrow [i,j] \},\\
+            & &    & \quad\{ \{ S_0[i,j,k,l] -> [0,k,l] \} \}\\
+            & &    & \quad\{ \{ S_1[i,j,k] -> [i,j,1,k] \} \}\\
+            & & \} &\\
+    \end{array}
+\]
+
+\noindent and use a more compact way to specify the transformation of the root of the tree:
+
+\[
+    T_p = \{ S_0[i,j] -> [j,i] ; S_1[i,j] -> [j,i] \}
+\]
+
+However the signature of a tree transformation is slightly different:
+
+\[
+    T_\text{apply}: \mathcal{T}_i \rightarrow ( \mathcal{T}_i \rightarrow \mathcal{T}_j) ) \rightarrow \mathcal{T}_j
+\]
+
+
+\noindent so the tree transformation that permutes the two first dimensions of the tree can be written:
+
+\[
+    T'_p(< u, v >) = < T_p(u), v >
+\]
+
+
+The following sections defines a few common schedule transformation in terms of schedule tree transformation.
+
+\subsection{Interchange}
+
+\emph{Loop interchange} is the process of interchanging several loop iteration
+variable. In terms of schedule, it boils down to a permutation of the time
+domain.
+
+\[
+    \text{interchange}: T_k \rightarrow P \rightarrow T_k
+\]
+
+\noindent where $P$ is the set of domain permutations. Its behavior is described as:
+
+\[
+    \text{interchange}(<u, v>, p) = <p(u), v>)
+\]
+
+\noindent \emph{i.e.}\ it leaves the children of the tree untouched and
+permutes the output dimension of $u$ according to $p$.
+
+\subsection{Index Set Split}
+
+\emph{Index set splitting} is the process of spliting the index set of a loop
+into parts. In terms of schedule, it can be expressed as the duplication of a
+schedule with an additional time constraint.
+
+\[
+    \text{index\_set\_split}: T_k \rightarrow U \rightarrow T_2
+\]
+
+Its behavior is described as:
+
+\[
+    \text{index\_set\_split}(<u, v>, m) = < {}, < < m(u), v>, < u - m(u), v> > >
+\]
+
+\noindent \emph{i.e.}\ $m$ is used to select part of the time domain that will
+be used for the first child, the complement is used for the second child.
+
+\subsection{Tile}
+
+\emph{Loop tiling} is the process of changing the iteration order of a loop
+nest into tiles in order to improve locality. In terms of schedule, tiling
+generally adds new iteration domains with additional blocking constraints. This
+section is limited to rectangular tiling.
+
+\[
+    \text{tile}: T_k \rightarrow \mathbb{N}^k \rightarrow T_1
+\]
+
+Its behavior is described as:
+
+\[
+    \text{tile}(<u, v>, t) = < s_\text{outer}(t)(u), < u, v > >
+\]
+
+\noindent where
+
+\[
+    \begin{array}{l}
+        s_\text{outer} \rightarrow \mathcal{U} \rightarrow \mathbb{N}^k \rightarrow \mathcal{U} \\
+    s_\text{outer}(u, t) = \{ [v_0, \ldots, v_k] -> [w_0, \ldots, w_k] | \bigwedge_{i=0}^k(mod(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
+    \end{array}
+\]
+
+\end{document}
