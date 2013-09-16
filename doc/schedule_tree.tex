@@ -42,12 +42,16 @@ of all schedule trees, defined as:
 
 \[
     \begin{array}{lcl}
-        \mathcal{T}_k &=& \{ <u, v> | u \in \mathcal{U}, v \in \mathcal{T}^k, k \ge 0 \} \\
-        \mathcal{T} &=& U_{k=0}^\infty \mathcal{T}_k\\
+        \mathcal{T}_k &=& \{ <u, v> | u \in \mathcal{U}, v \in \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k \} \\
+        \mathcal{T} &=& \displaystyle\bigcup_{k\in\mathbb{N}} \mathcal{T}_k\\
     \end{array}
 \]
 
 \noindent \emph{i.e.}\ a schedule tree holds a union map and any number of children that also are schedule trees.
+
+The function that yields the relation $u$ of a tree is called $\text{rel}:\mathcal{T} \rightarrow \mathcal{U}$.
+
+The function that yields the children $v$ of a tree is called $\text{chd}:\mathcal{T} \rightarrow \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k$.
 
 \subsection{Tree to Union Maps}
 
@@ -66,7 +70,7 @@ Given any schedule tree, we define a flattening operation $\text{flat}$
     \end{array}
 \]
 
-\noindent where $\text{range\_product}$ pefrorms a flat range product between to elements of $\mathcal{U}$ and $\text{append\_dim}$ appends a constant dimension to the out space of a schedule:
+\noindent where $\text{range\_product}$ performs a flat range product between to elements of $\mathcal{U}$ and $\text{append\_dim}$ appends a constant dimension to the out space of a schedule:
 
 \[
     \text{range\_product}(A \rightarrow B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
@@ -100,13 +104,14 @@ Flattening $t$ turns it into a regular union map, where the ordering of the chil
 
 \subsection{Union Maps to Tree}
 
-{
-    \raggedleft\emph{I'd like to define a function that turns a union map into a tree, automatically spawning children when all the value of a dimension are integer singletons}
-}
+{ \raggedleft\emph{I'd like to define a function that turns a union map into a
+tree, automatically spawning children when all the value of a dimension are
+integer singletons. This is directly related to the definition of a canonical tree\dots} }
 
 \[
     \text{split}: \mathcal{U} \rightarrow \mathcal{T}
 \]
+
 
 
 \section{Schedule Trees Transformations}
@@ -167,7 +172,7 @@ variable. In terms of schedule, it boils down to a permutation of the time
 domain.
 
 \[
-    \text{interchange}: T_k \rightarrow P \rightarrow T_k
+    \text{interchange}: \mathcal{T}_k \rightarrow P \rightarrow \mathcal{T}_k
 \]
 
 \noindent where $P$ is the set of domain permutations. Its behavior is described as:
@@ -181,12 +186,12 @@ permutes the output dimension of $u$ according to $p$.
 
 \subsection{Index Set Split}
 
-\emph{Index set splitting} is the process of spliting the index set of a loop
+\emph{Index set splitting} is the process of splitting the index set of a loop
 into parts. In terms of schedule, it can be expressed as the duplication of a
 schedule with an additional time constraint.
 
 \[
-    \text{index\_set\_split}: T_k \rightarrow U \rightarrow T_2
+    \text{index\_set\_split}: \mathcal{T}_k \rightarrow U \rightarrow \mathcal{T}_2
 \]
 
 Its behavior is described as:
@@ -206,7 +211,7 @@ generally adds new iteration domains with additional blocking constraints. This
 section is limited to rectangular tiling.
 
 \[
-    \text{tile}: T_k \rightarrow \mathbb{N}^k \rightarrow T_1
+    \text{tile}: \mathcal{T}_k \rightarrow \mathbb{N}^k \rightarrow \mathcal{T}_1
 \]
 
 Its behavior is described as:
@@ -222,6 +227,61 @@ Its behavior is described as:
         s_\text{outer} \rightarrow \mathcal{U} \rightarrow \mathbb{N}^k \rightarrow \mathcal{U} \\
     s_\text{outer}(u, t) = \{ [v_0, \ldots, v_k] -> [w_0, \ldots, w_k] | \bigwedge_{i=0}^k(mod(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
     \end{array}
+\]
+
+\subsection{Fuse}
+
+\emph{Loop fusion} is the process of fusing several loops in one. In terms of
+schedule, a simple version of loop fusion can be expressed as a swap between a
+constant dimension and a varying dimension.
+
+\[
+    \text{fuse}:  \mathcal{T}_k \rightarrow  \mathbb{N}^j \rightarrow \mathbb{N} \rightarrow  \mathcal{T}_{k - j + 1}
+\]
+
+Its behavior is described as: 
+
+\[
+    \text{fuse}(<u, <v_0, \ldots, v_k> >, <f_0, \ldots, f_j>, t) = < u, F >
+\]
+
+\noindent where:
+
+\[
+    F = \left<
+    \begin{array}{ccl}
+         <\text{rel}(f_0) \cup \ldots \cup \text{rel}(f_j), <\text{chd}(f_0), \ldots, \text{chd}(f_j)>  > & |& i = t \\
+         v_i & |& i \neq t \wedge  v_i \not\in \{f_0, \ldots, f_j\} \\
+    \end{array}
+    \right>
+\]
+
+\subsection{Distribute}
+
+\emph{Loop distribution} is the process of distributing the body of a loop
+across several iterations. It's the opposite transformation of \emph{loop
+fusion}. In terms of schedule, a simple version of loop distribution can be
+expressed as a swap between a constant dimension and a varying dimension.
+
+\[
+    \text{distribute}: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{j+1}
+\]
+
+Its behavior is described as:
+
+\[
+    \text{distribute}(< u, <v_0, \ldots, v_k> >, <d_0, \ldots, d_j>) = <u \cap \mathbb{Z}^{|u|_\text{out}-1}, D>
+\]
+
+\noindent where:
+
+\[
+    D = \left<
+    \begin{array}{ccl}
+        < u_{-1}, v_i > & | & i \in \{ d_0, \ldots, d_j\} \\
+        < u_{-1}, < v_j | j \not\in \{ d_0, \ldots, d_j\}> >  & & 
+    \end{array}
+    \right>
 \]
 
 \end{document}
