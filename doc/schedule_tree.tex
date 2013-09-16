@@ -26,10 +26,10 @@ In the scope of heterogeneous computing, a tree representation also makes sense
 as part of the schedule maps to computations done on a given processor while
 other parts map to computations done on another piece of hardware. Specific
 transformations can be applied on a sub tree depending on the target
-accelerator it will ultimately maps to. Likewise a specific code generator can
+accelerator it will ultimately map to. Likewise a specific code generator can
 be used to process a sub tree.
 
-When analysis code that uses third-party libraries, it may be difficult to
+When analysing code that uses third-party libraries, it may be difficult to
 compute the original schedule of a piece of code as it requires some kind of
 inter procedural analysis. Using a tree representation, one can easily combine
 the pre-computed schedule of library functions with the schedule of the call
@@ -120,15 +120,15 @@ The primary interest of a tree representation for schedules is that a part of
 the schedule can be updated while leaving the other parts untouched. For instance, consider the following schedule:
 
 \[
-    s = \{ S_0[i,j,k,l] -> [i,j,0,k,l] ; S_1[i,j,k] -> [i,j,1,k] \}
+    s = \{ S_0[i,j,k,l] \rightarrow [i,j,0,k,l] ; S_1[i,j,k] \rightarrow [i,j,1,k] \}
 \]
 
-If we want to permute the first two first output dimensions $i, j$ for the maps
-$S_0, S_1$, we don't care much about the remaining dimensions. Yet we have to
-specifiy them in the schedule transformation:
+If we want to permute the first two output dimensions $i, j$ for the maps
+$S_0, S_1$, we do not care much about the remaining dimensions. Yet we have to
+specify them in the schedule transformation:
 
 \[
-    p = \{ S_0[i,j,o_0,o_1,o_2] -> [j,i,o_0,o_1,o_2] ; S_1[i,j,o_0, o_1] -> [j,i,o_0,o_1] \}
+    p = \{ S_0[i,j,o_0,o_1,o_2] \rightarrow [j,i,o_0,o_1,o_2] ; S_1[i,j,o_0, o_1] \rightarrow [j,i,o_0,o_1] \}
 \]
 
 \noindent which is particularly tedious. Using a tree reprensentation $t_s$ for $s$, one could get:
@@ -137,8 +137,8 @@ specifiy them in the schedule transformation:
     \begin{array}{lcll}
         t_s &=& \{ &\\
             & &    & \{S_0[i,j,k,l] \rightarrow [i,j] ; \{S_1[i,j,k,l] \rightarrow [i,j] \},\\
-            & &    & \quad\{ \{ S_0[i,j,k,l] -> [0,k,l] \} \}\\
-            & &    & \quad\{ \{ S_1[i,j,k] -> [i,j,1,k] \} \}\\
+            & &    & \quad\{ \{ S_0[i,j,k,l] \rightarrow [0,k,l] \} \}\\
+            & &    & \quad\{ \{ S_1[i,j,k] \rightarrow [i,j,1,k] \} \}\\
             & & \} &\\
     \end{array}
 \]
@@ -146,7 +146,7 @@ specifiy them in the schedule transformation:
 \noindent and use a more compact way to specify the transformation of the root of the tree:
 
 \[
-    T_p = \{ S_0[i,j] -> [j,i] ; S_1[i,j] -> [j,i] \}
+    T_p = \{ S_0[i,j] \rightarrow [j,i] ; S_1[i,j] \rightarrow [j,i] \}
 \]
 
 However the signature of a tree transformation is slightly different:
