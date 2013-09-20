@@ -35,51 +35,56 @@ inter procedural analysis. Using a tree representation, one can easily combine
 the pre-computed schedule of library functions with the schedule of the call
 site.
 
+\section*{Notations}
+
+Tuples are denoted between angle brackets, as in $\langle a_0, \ldots, a_{n-1}\rangle$.
+
 \section{Formal Definition}
+
 
 Let $\mathcal{U}$ be the domain of all union maps and $\mathcal{T}$ the domain
 of all schedule trees, defined as:
 
 \[
     \begin{array}{lcl}
-        \mathcal{T}_k &=& \{ <u, v> | u \in \mathcal{U}, v \in \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k \} \\
+        \mathcal{T}_k &=& \{ \langle u, v\rangle \mid u \in \mathcal{U}, \exists k\in\mathbb{N}, v \in \mathcal{T}^k \} \\
         \mathcal{T} &=& \displaystyle\bigcup_{k\in\mathbb{N}} \mathcal{T}_k\\
     \end{array}
 \]
 
 \noindent \emph{i.e.}\ a schedule tree holds a union map and any number of children that also are schedule trees.
 
-The function that yields the relation $u$ of a tree is called $\text{rel}:\mathcal{T} \rightarrow \mathcal{U}$.
+The function that yields the relation $u$ of a tree is called $\mathrm{rel}:\mathcal{T} \rightarrow \mathcal{U}$.
 
-The function that yields the children $v$ of a tree is called $\text{chd}:\mathcal{T} \rightarrow \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k$.
+The function that yields the children $v$ of a tree is called $\mathrm{chd}:\mathcal{T} \rightarrow \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k$.
 
 \subsection{Tree to Union Maps}
 
-Given any schedule tree, we define a flattening operation $\text{flat}$
+Given any schedule tree, we define a flattening operation $\mathrm{flat}$
 
 \[
-    \text{flat}: \mathcal{T} \rightarrow \mathcal{U}
+    \mathrm{flat}: \mathcal{T} \rightarrow \mathcal{U}
 \]
 
 \noindent such that
 
 \[
     \begin{array}{lcl}
-        \text{flat}(<u, <> >) &=& u \\
-        \text{flat}(<u, <v_0, \ldots, v_k> >) &=& \text{range\_product}(u, U_{k=0}^{k=n} \text{flat}(\text{append\_dim}(k, v_k)) \\
+        \mathrm{flat}(\langle u, \langle\rangle \rangle) &=& u \\
+        \mathrm{flat}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle) &=& \mathrm{range\_product}(u, U_{k=0}^{k=n} \mathrm{flat}(\mathrm{append\_dim}(k, v_k)) \\
     \end{array}
 \]
 
-\noindent where $\text{range\_product}$ performs a flat range product between to elements of $\mathcal{U}$ and $\text{append\_dim}$ appends a constant dimension to the out space of a schedule:
+\noindent where $\mathrm{range\_product}$ performs a flat range product between to elements of $\mathcal{U}$ and $\mathrm{append\_dim}$ appends a constant dimension to the out space of a schedule:
 
 \[
-    \text{range\_product}(A \rightarrow B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
+    \mathrm{range\_product}(A \rightarrow B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
 \]
 
 \noindent and
 
 \[
-    \text{append\_dim}(k, <A \rightarrow B, v>) \rightarrow < A \rightarrow (\{k\} \times B), v >
+    \mathrm{append\_dim}(k, \langle A \rightarrow B, v\rangle) \rightarrow \langle A \rightarrow (\{k\} \times B), v \rangle
 \]
 
 \subsubsection*{Example}
@@ -87,19 +92,21 @@ Given any schedule tree, we define a flattening operation $\text{flat}$
 For instance, let $t$ be a simple tree:
 
 \[
-    \begin{array}{lcll}
-        t &=& \{ &\\
-          & &    & \{[i,j] \rightarrow [i] \},\\
-          & &    & \quad\{ \{ [i,j] \rightarrow [j] \} \}\\
-          & &    & \quad\{ \{ [i,j] \rightarrow [j] \} \}\\
-          & & \} &\\
+    \begin{array}{lcl}
+        t &=& \langle \\
+          & & \quad\{[i,j] \rightarrow [i] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i,j] \rightarrow [j] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i,j] \rightarrow [j] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
     \end{array}
 \]
 
 Flattening $t$ turns it into a regular union map, where the ordering of the children of the root tree is made explicit:
 
 \[
-    \text{flat}(t) = \{ [i,j] \rightarrow [i,0,j] ; [i,j] \rightarrow [i,1,j] \}
+    \mathrm{flat}(t) = \{ [i,j] \rightarrow [i,0,j] ; [i,j] \rightarrow [i,1,j] \}
 \]
 
 \subsection{Union Maps to Tree}
@@ -109,7 +116,7 @@ tree, automatically spawning children when all the value of a dimension are
 integer singletons. This is directly related to the definition of a canonical tree\dots} }
 
 \[
-    \text{split}: \mathcal{U} \rightarrow \mathcal{T}
+    \mathrm{split}: \mathcal{U} \rightarrow \mathcal{T}
 \]
 
 
@@ -152,14 +159,14 @@ specify them in the schedule transformation:
 However the signature of a tree transformation is slightly different:
 
 \[
-    T_\text{apply}: \mathcal{T}_i \rightarrow ( \mathcal{T}_i \rightarrow \mathcal{T}_j) ) \rightarrow \mathcal{T}_j
+    T_\mathrm{apply}: \mathcal{T}_i \rightarrow ( \mathcal{T}_i \rightarrow \mathcal{T}_j) \rightarrow \mathcal{T}_j
 \]
 
 
 \noindent so the tree transformation that permutes the two first dimensions of the tree can be written:
 
 \[
-    T'_p(< u, v >) = < T_p(u), v >
+    T'_p(\langle u, v \rangle) = \langle T_p(u), v \rangle
 \]
 
 
@@ -172,13 +179,13 @@ variable. In terms of schedule, it boils down to a permutation of the time
 domain.
 
 \[
-    \text{interchange}: \mathcal{T}_k \rightarrow P \rightarrow \mathcal{T}_k
+    \mathrm{interchange}: \mathcal{T}_k \rightarrow P \rightarrow \mathcal{T}_k
 \]
 
 \noindent where $P$ is the set of domain permutations. Its behavior is described as:
 
 \[
-    \text{interchange}(<u, v>, p) = <p(u), v>)
+    \mathrm{interchange}(\langle u, v\rangle, p) = \langle p(u), v\rangle)
 \]
 
 \noindent \emph{i.e.}\ it leaves the children of the tree untouched and
@@ -191,13 +198,13 @@ into parts. In terms of schedule, it can be expressed as the duplication of a
 schedule with an additional time constraint.
 
 \[
-    \text{index\_set\_split}: \mathcal{T}_k \rightarrow U \rightarrow \mathcal{T}_2
+    \mathrm{index\_set\_split}: \mathcal{T}_k \rightarrow U \rightarrow \mathcal{T}_2
 \]
 
 Its behavior is described as:
 
 \[
-    \text{index\_set\_split}(<u, v>, m) = < {}, < < m(u), v>, < u - m(u), v> > >
+    \mathrm{index\_set\_split}(\langle u, v\rangle, m) = \langle  {}, \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
 \]
 
 \noindent \emph{i.e.}\ $m$ is used to select part of the time domain that will
@@ -211,21 +218,21 @@ generally adds new iteration domains with additional blocking constraints. This
 section is limited to rectangular tiling.
 
 \[
-    \text{tile}: \mathcal{T}_k \rightarrow \mathbb{N}^k \rightarrow \mathcal{T}_1
+    \mathrm{tile}: \mathcal{T}_k \rightarrow \mathbb{N}^k \rightarrow \mathcal{T}_1
 \]
 
 Its behavior is described as:
 
 \[
-    \text{tile}(<u, v>, t) = < s_\text{outer}(t)(u), < u, v > >
+    \mathrm{tile}(\langle u, v\rangle, t) = \langle  s_\mathrm{outer}(t)(u), \langle  u, v \rangle \rangle
 \]
 
 \noindent where
 
 \[
     \begin{array}{l}
-        s_\text{outer} \rightarrow \mathcal{U} \rightarrow \mathbb{N}^k \rightarrow \mathcal{U} \\
-    s_\text{outer}(u, t) = \{ [v_0, \ldots, v_k] -> [w_0, \ldots, w_k] | \bigwedge_{i=0}^k(mod(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
+        s_\mathrm{outer} \rightarrow \mathcal{U} \rightarrow \mathbb{N}^k \rightarrow \mathcal{U} \\
+    s_\mathrm{outer}(u, t) = \{ [v_0, \ldots, v_k] -\rangle [w_0, \ldots, w_k] \mid \bigwedge_{i=0}^k(mod(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
     \end{array}
 \]
 
@@ -236,24 +243,24 @@ schedule, a simple version of loop fusion can be expressed as a swap between a
 constant dimension and a varying dimension.
 
 \[
-    \text{fuse}:  \mathcal{T}_k \rightarrow  \mathbb{N}^j \rightarrow \mathbb{N} \rightarrow  \mathcal{T}_{k - j + 1}
+    \mathrm{fuse}:  \mathcal{T}_k \rightarrow  \mathbb{N}^j \rightarrow \mathbb{N} \rightarrow  \mathcal{T}_{k - j + 1}
 \]
 
 Its behavior is described as: 
 
 \[
-    \text{fuse}(<u, <v_0, \ldots, v_k> >, <f_0, \ldots, f_j>, t) = < u, F >
+    \mathrm{fuse}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle, \langle f_0, \ldots, f_j\rangle, t) = \langle  u, F \rangle
 \]
 
 \noindent where:
 
 \[
-    F = \left<
+    F = \left\langle 
     \begin{array}{ccl}
-         <\text{rel}(f_0) \cup \ldots \cup \text{rel}(f_j), <\text{chd}(f_0), \ldots, \text{chd}(f_j)>  > & |& i = t \\
-         v_i & |& i \neq t \wedge  v_i \not\in \{f_0, \ldots, f_j\} \\
+         \langle \mathrm{rel}(f_0) \cup \ldots \cup \mathrm{rel}(f_j), \langle \mathrm{chd}(f_0), \ldots, \mathrm{chd}(f_j)\rangle  \rangle & \mid& i = t \\
+         v_i & \mid& i \neq t \wedge  v_i \not\in \{f_0, \ldots, f_j\} \\
     \end{array}
-    \right>
+    \right\rangle
 \]
 
 \subsection{Distribute}
@@ -264,24 +271,24 @@ fusion}. In terms of schedule, a simple version of loop distribution can be
 expressed as a swap between a constant dimension and a varying dimension.
 
 \[
-    \text{distribute}: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{j+1}
+    \mathrm{distribute}: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{j+1}
 \]
 
 Its behavior is described as:
 
 \[
-    \text{distribute}(< u, <v_0, \ldots, v_k> >, <d_0, \ldots, d_j>) = <u \cap \mathbb{Z}^{|u|_\text{out}-1}, D>
+    \mathrm{distribute}(\langle  u, \langle v_0, \ldots, v_k\rangle \rangle, \langle d_0, \ldots, d_j\rangle) = \langle u \cap \mathbb{Z}^{|u|_\mathrm{out}-1}, D\rangle
 \]
 
 \noindent where:
 
 \[
-    D = \left<
+    D = \left\langle 
     \begin{array}{ccl}
-        < u_{-1}, v_i > & | & i \in \{ d_0, \ldots, d_j\} \\
-        < u_{-1}, < v_j | j \not\in \{ d_0, \ldots, d_j\}> >  & & 
+        \langle  u_{-1}, v_i \rangle & \mid & i \in \{ d_0, \ldots, d_j\} \\
+        \langle  u_{-1}, \langle  v_j \mid j \not\in \{ d_0, \ldots, d_j\}\rangle \rangle  & & 
     \end{array}
-    \right>
+    \right\rangle
 \]
 
 \end{document}
