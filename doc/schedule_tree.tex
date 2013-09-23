@@ -4,6 +4,7 @@
 \usepackage{amssymb}
 
 \usepackage{acronym}
+\usepackage{todonotes}
 \acrodef{ISL}{Integer Set Library}
 
 \title{Seeds for a Schedule Tree} % Thcs Sven
@@ -191,6 +192,39 @@ domain.
 \noindent \emph{i.e.}\ it leaves the children of the tree untouched and
 permutes the output dimension of $u$ according to $p$.
 
+\subsubsection*{Example}
+
+Let's interchange a schedule tree $t$ through the application of permuation $p$:
+
+\[
+    \begin{array}{lcl}
+        t &=& \langle \\
+          & & \quad\{[i,j,k] \rightarrow [i,j,k] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i,j,k] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i,j,k] \rightarrow [] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+        p &=& (x, y, z) \mapsto (y, z, x) \\
+        t'&=& \mathrm{interchange}(t, p) \\
+    \end{array}
+\]
+
+\noindent in the end, the value of $t'$ is:
+
+\[
+    \begin{array}{lcl}
+        t'&=& \langle \\
+          & & \quad\{[i,j,k] \rightarrow [k,j,i] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i,j,k] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i,j,k] \rightarrow [] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+    \end{array}
+\]
+
+
 \subsection{Index Set Split}
 
 \emph{Index set splitting} is the process of splitting the index set of a loop
@@ -209,6 +243,42 @@ Its behavior is described as:
 
 \noindent \emph{i.e.}\ $m$ is used to select part of the time domain that will
 be used for the first child, the complement is used for the second child.
+
+\subsubsection*{Example}
+
+Let's split a schedule tree $t$ according to the union map $m$:
+
+\[
+    \begin{array}{lcl}
+        t &=& \langle \\
+          & & \quad\{[i] \rightarrow [i] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+        m &=& \{ [x] \rightarrow [x] \mid x < 3 \} \\
+        t'&=& \mathrm{index\_set\_split}(t, m) \\
+    \end{array}
+\]
+
+\noindent in the end, the value of $t'$ is:
+
+\[
+    \begin{array}{lcl}
+        t'&=& \langle \\
+          & & \quad\{[i] \rightarrow [i] \mid i < 3 \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\rangle, \\
+          & & \quad\{[i] \rightarrow [i] \mid i >= 3 \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \rangle \\
+    \end{array}
+\]
 
 \subsection{Tile}
 
@@ -232,7 +302,42 @@ Its behavior is described as:
 \[
     \begin{array}{l}
         s_\mathrm{outer} \rightarrow \mathcal{U} \rightarrow \mathbb{N}^k \rightarrow \mathcal{U} \\
-    s_\mathrm{outer}(u, t) = \{ [v_0, \ldots, v_k] -\rangle [w_0, \ldots, w_k] \mid \bigwedge_{i=0}^k(mod(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
+    s_\mathrm{outer}(u, t) = \{ [v_0, \ldots, v_k] -\rangle [w_0, \ldots, w_k] \mid \bigwedge_{i=0}^k(\mathrm{mod}(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
+    \end{array}
+\]
+
+\subsubsection*{Example}
+
+Let's tile a schedule tree $t$ according to the tiles $v$:
+
+\[
+    \begin{array}{lcl}
+        t &=& \langle \\
+          & & \quad\{[i,j] \rightarrow [i,j] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ [i,j] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ [i,j] \rightarrow [i+j] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+        v &=& \langle 4, 8 \rangle\\
+        t'&=& \mathrm{tile}(t, v) \\
+    \end{array}
+\]
+
+\noindent in the end, the value of $t'$ is:
+
+\[
+    \begin{array}{lcl}
+        t'&=& \langle \\
+          & & \quad\{[i,j] \rightarrow [i_t,j_t] \mid \mathrm{mod}(i_t, 4) = 0 \wedge i_t \le i < i_t + 4 \wedge \mathrm{mod}(j_t, 8) = 0 \wedge j_t \le i < j_t + 8\},\\
+          & & \quad\langle \\
+          & & \quad\quad\{ [i,j] \rightarrow [i,j] \},\\
+          & & \quad\quad\langle \\
+          & & \quad\quad\quad \langle\{ [i,j] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad\quad  \langle\{ [i,j] \rightarrow [i+j] \}, \langle\rangle\rangle\\
+          & & \quad\quad\rangle \\
+          & & \quad\rangle \\
+          & & \rangle \\
     \end{array}
 \]
 
@@ -263,6 +368,39 @@ Its behavior is described as:
     \right\rangle
 \]
 
+\subsubsection*{Example}
+
+Let's fuse the first and third children of a schedule tree $t$ into the third child, leaving the second untouched:
+
+\[
+    \begin{array}{lcl}
+        t &=& \langle \\
+          & & \quad\{A[i] \rightarrow []; B[i] \rightarrow []; C[i] \rightarrow []  \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ A[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\quad \langle\{ C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+        t'&=& \mathrm{fuse}(t, t[0], t[2], 2) \\
+    \end{array}
+\]
+
+\noindent in the end, the value of $t'$ is:
+
+\[
+    \begin{array}{lcl}
+        t'&=& \langle \\
+          & & \quad\{[i] \rightarrow [] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ A[i] \rightarrow [i]; C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+    \end{array}
+\]
+
+
 \subsection{Distribute}
 
 \emph{Loop distribution} is the process of distributing the body of a loop
@@ -290,5 +428,38 @@ Its behavior is described as:
     \end{array}
     \right\rangle
 \]
+
+\subsubsection*{Example}
+
+Let's distribute the second child of schedule tree $t$:
+
+\[
+    \begin{array}{lcl}
+        t &=& \langle \\
+          & & \quad\{[i] \rightarrow [] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ A[i] \rightarrow [i]; C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+        t'&=& \mathrm{distribute}(t, 1) \\
+    \end{array}
+\]
+
+\noindent in the end, the value of $t'$ is:
+
+\[
+    \begin{array}{lcl}
+        t'&=& \langle \\
+          & & \quad\{[i] \rightarrow [] \},\\
+          & & \quad\langle \\
+          & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ A[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\quad \langle\{ C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\rangle \\
+          & & \rangle \\
+    \end{array}
+\]
+\todo{how is the order chosen?}
 
 \end{document}
