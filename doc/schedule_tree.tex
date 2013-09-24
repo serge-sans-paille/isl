@@ -17,28 +17,50 @@
 \section*{Motivations}
 
 This document formalizes the design and some use cases of \emph{schedule
-trees}, a refinement to the concept of \emph{schedule} used in the \ac{ISL}. The
-benefits of using a tree representation over a flat representation for a
-schedule is that it makes it easier to manipulate part of a schedule, for
-instance to transform only the inner domain of a schedule while leaving the
-outer domain untouched.
+trees}, a refinement to the concept of \emph{schedule} used in the \ac{ISL}.
+Informally, a schedule tree is an ordered tree where nodes are union sets, with
+a $\mathrm{flat}$ operator to turn a schedule tree into a schedule.
 
-In the scope of heterogeneous computing, a tree representation also makes sense
-as part of the schedule maps to computations done on a given processor while
-other parts map to computations done on another piece of hardware. Specific
-transformations can be applied on a sub tree depending on the target
-accelerator it will ultimately map to. Likewise a specific code generator can
-be used to process a sub tree.
+The benefits of using a tree representation over a flat representation for a
+schedule is that it naturally fits the hierarchical structure of some piece of
+codes. Moreover there is no loss of expressiveness as any schedule can fit into
+a tree as a tree with a single node.
 
-When analysing code that uses third-party libraries, it may be difficult to
-compute the original schedule of a piece of code as it requires some kind of
-inter procedural analysis. Using a tree representation, one can easily combine
-the pre-computed schedule of library functions with the schedule of the call
-site.
+Typical cases where a tree structure are useful are:
+
+\begin{itemize}
+
+    \item Transformation of only a part of the schedule, say the last
+        dimensions, while leaving the first dimensions untouched. At the loop
+        level, it means one can modify inner loops without the burden of
+        specifying outer loops. More generally, one can specify a set of high
+        level schedule transformations that work indifferently on any sub tree,
+        as long as some constraints are respected. Proposals for such
+        transformations are listed in
+        Section~\ref{sec:schedule-tree-transformations}.
+
+    \item Usage of different scheduling strategies and code generator for different
+        part of the tree. This is a common situation in heterogeneous computing
+        where different parts of a schedule will be mapped on different hardware.
+
+    \item Generation of schedule in an inter-procedural context. Languages such
+        as \textsc{Pencil} make it possible to annotate a function with
+        summarized access informations that can be used to generate a
+        hierarchical schedule where some leaves are generated from the
+        annotation, and their parents from code analysis. It is also possible
+        to make sure some dimensions are never modified by leaving them in a
+        special immutable node. This node can for instance represent the
+        schedule of a function call from a third-party function.
+
+\end{itemize}
 
 \section*{Notations}
 
-Tuples are denoted between angle brackets, as in $\langle a_0, \ldots, a_{n-1}\rangle$.
+Tuples are denoted between angle brackets, as in $\langle a_0, \ldots,
+a_{n-1}\rangle$.
+
+The Cartesian product of set $\mathcal{S}$ with itself $n$ times is denoted
+$\mathcal{S}^n$.
 
 \section{Formal Definition}
 
@@ -72,14 +94,14 @@ Given any schedule tree, we define a flattening operation $\mathrm{flat}$
 \[
     \begin{array}{lcl}
         \mathrm{flat}(\langle u, \langle\rangle \rangle) &=& u \\
-        \mathrm{flat}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle) &=& \mathrm{range\_product}(u, U_{k=0}^{k=n} \mathrm{flat}(\mathrm{append\_dim}(k, v_k)) \\
+        \mathrm{flat}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle) &=& \mathrm{range\_product}(u, \bigcup_{k=0}^{k=n} \mathrm{flat}(\mathrm{append\_dim}(k, v_k)) \\
     \end{array}
 \]
 
 \noindent where $\mathrm{range\_product}$ performs a flat range product between to elements of $\mathcal{U}$ and $\mathrm{append\_dim}$ appends a constant dimension to the out space of a schedule:
 
 \[
-    \mathrm{range\_product}(A \rightarrow B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
+    \mathrm{range\_product}(A \cap B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
 \]
 
 \noindent and
@@ -123,6 +145,7 @@ integer singletons. This is directly related to the definition of a canonical tr
 
 
 \section{Schedule Trees Transformations}
+\label{sec:schedule-tree-transformation}
 
 The primary interest of a tree representation for schedules is that a part of
 the schedule can be updated while leaving the other parts untouched. For instance, consider the following schedule:
@@ -139,12 +162,12 @@ specify them in the schedule transformation:
     p = \{ S_0[i,j,o_0,o_1,o_2] \rightarrow [j,i,o_0,o_1,o_2] ; S_1[i,j,o_0, o_1] \rightarrow [j,i,o_0,o_1] \}
 \]
 
-\noindent which is particularly tedious. Using a tree reprensentation $t_s$ for $s$, one could get:
+\noindent which is particularly tedious. Using a tree representation $t_s$ for $s$, one could get:
 
 \[
     \begin{array}{lcll}
         t_s &=& \{ &\\
-            & &    & \{S_0[i,j,k,l] \rightarrow [i,j] ; \{S_1[i,j,k,l] \rightarrow [i,j] \},\\
+            & &    & \{S_0[i,j,k,l] \rightarrow [i,j] ; \{S_1[i,j,k] \rightarrow [i,j] \},\\
             & &    & \quad\{ \{ S_0[i,j,k,l] \rightarrow [0,k,l] \} \}\\
             & &    & \quad\{ \{ S_1[i,j,k] \rightarrow [i,j,1,k] \} \}\\
             & & \} &\\
@@ -154,7 +177,7 @@ specify them in the schedule transformation:
 \noindent and use a more compact way to specify the transformation of the root of the tree:
 
 \[
-    T_p = \{ S_0[i,j] \rightarrow [j,i] ; S_1[i,j] \rightarrow [j,i] \}
+    T_p = \{ S_0[i,j,k,l] \rightarrow [j,i] ; S_1[i,j,k] \rightarrow [j,i] \}
 \]
 
 However the signature of a tree transformation is slightly different:
@@ -194,7 +217,7 @@ permutes the output dimension of $u$ according to $p$.
 
 \subsubsection*{Example}
 
-Let's interchange a schedule tree $t$ through the application of permuation $p$:
+Let's interchange a schedule tree $t$ through the application of permutation $p$:
 
 \[
     \begin{array}{lcl}
@@ -232,13 +255,13 @@ into parts. In terms of schedule, it can be expressed as the duplication of a
 schedule with an additional time constraint.
 
 \[
-    \mathrm{index\_set\_split}: \mathcal{T}_k \rightarrow U \rightarrow \mathcal{T}_2
+    \mathrm{index\_set\_split}: \mathcal{T}_k \rightarrow \mathcal{U} \rightarrow \mathcal{T}_2
 \]
 
 Its behavior is described as:
 
 \[
-    \mathrm{index\_set\_split}(\langle u, v\rangle, m) = \langle  {}, \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
+    \mathrm{index\_set\_split}(\langle u, v\rangle, m) = \langle  \{\}, \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
 \]
 
 \noindent \emph{i.e.}\ $m$ is used to select part of the time domain that will
