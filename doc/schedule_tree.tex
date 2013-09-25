@@ -62,6 +62,8 @@ a_{n-1}\rangle$.
 The Cartesian product of set $\mathcal{S}$ with itself $n$ times is denoted
 $\mathcal{S}^n$.
 
+$\mathrm{trimr}$ is a function that takes an union map and returns the same union map without out dimensions.\todo{I am very unhappy with the name}
+
 \section{Formal Definition}
 
 
@@ -261,7 +263,7 @@ schedule with an additional time constraint.
 Its behavior is described as:
 
 \[
-    \mathrm{index\_set\_split}(\langle u, v\rangle, m) = \langle  \{\}, \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
+    \mathrm{index\_set\_split}(\langle u, v\rangle, m) = \langle  \mathrm{trimr}(u), \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
 \]
 
 \noindent \emph{i.e.}\ $m$ is used to select part of the time domain that will
@@ -307,8 +309,8 @@ Let's split a schedule tree $t$ according to the union map $m$:
 
 \emph{Loop tiling} is the process of changing the iteration order of a loop
 nest into tiles in order to improve locality. In terms of schedule, tiling
-generally adds new iteration domains with additional blocking constraints. This
-section is limited to rectangular tiling.
+generally adds new dimensions to the time space with additional blocking
+constraints. This section is limited to rectangular tiling.\todo{Add offsets ?}
 
 \[
     \mathrm{tile}: \mathcal{T}_k \rightarrow \mathbb{N}^k \rightarrow \mathcal{T}_1
@@ -325,7 +327,7 @@ Its behavior is described as:
 \[
     \begin{array}{l}
         s_\mathrm{outer} \rightarrow \mathcal{U} \rightarrow \mathbb{N}^k \rightarrow \mathcal{U} \\
-    s_\mathrm{outer}(u, t) = \{ [v_0, \ldots, v_k] -\rangle [w_0, \ldots, w_k] \mid \bigwedge_{i=0}^k(\mathrm{mod}(w_0, t_0) = 0 \wedge w_0 \le v_0 < w_0 + t_0) \}
+        s_\mathrm{outer}(u, t) = \{ [v_0, \ldots, v_k] \rightarrow [w_0, \ldots, w_k] \mid \bigwedge_{i=0}^k w_i = \lfloor \frac{v_i}{t_i} \rfloor \}
     \end{array}
 \]
 
@@ -352,7 +354,7 @@ Let's tile a schedule tree $t$ according to the tiles $v$:
 \[
     \begin{array}{lcl}
         t'&=& \langle \\
-          & & \quad\{[i,j] \rightarrow [i_t,j_t] \mid \mathrm{mod}(i_t, 4) = 0 \wedge i_t \le i < i_t + 4 \wedge \mathrm{mod}(j_t, 8) = 0 \wedge j_t \le i < j_t + 8\},\\
+          & & \quad\{[i,j] \rightarrow [i_t,j_t] \mid i_t = \lfloor\frac{i}{4}\rfloor \wedge j_t = \lfloor \frac{j}{8} \rfloor\},\\
           & & \quad\langle \\
           & & \quad\quad\{ [i,j] \rightarrow [i,j] \},\\
           & & \quad\quad\langle \\
@@ -377,18 +379,24 @@ constant dimension and a varying dimension.
 Its behavior is described as: 
 
 \[
-    \mathrm{fuse}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle, \langle f_0, \ldots, f_j\rangle, t) = \langle  u, F \rangle
+    \mathrm{fuse}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle, \langle f_0, \ldots, f_j\rangle, t) = \langle  u, \langle F_0, \ldots, F_{k-j+1}\rangle \rangle
 \]
 
 \noindent where:
 
 \[
-    F = \left\langle 
-    \begin{array}{ccl}
-         \langle \mathrm{rel}(f_0) \cup \ldots \cup \mathrm{rel}(f_j), \langle \mathrm{chd}(f_0), \ldots, \mathrm{chd}(f_j)\rangle  \rangle & \mid& i = t \\
-         v_i & \mid& i \neq t \wedge  v_i \not\in \{f_0, \ldots, f_j\} \\
+    F_i = \left\{
+    \begin{array}{c}
+         v_i \\
+        \langle \mathrm{rel}(v_0) \cup \ldots \cup \mathrm{rel}(v_j), \langle \mathrm{chd}(v_0), \ldots, \mathrm{chd}(v_j)\rangle  \rangle  \\
     \end{array}
-    \right\rangle
+    \right|
+    \left.
+    \begin{array}{l}
+         i \neq t \wedge  v_i \not\in \{f_0, \ldots, f_j\} \\
+         i = t \\
+    \end{array}
+    \right.
 \]
 
 \subsubsection*{Example}
@@ -400,9 +408,9 @@ Let's fuse the first and third children of a schedule tree $t$ into the third ch
         t &=& \langle \\
           & & \quad\{A[i] \rightarrow []; B[i] \rightarrow []; C[i] \rightarrow []  \},\\
           & & \quad\langle \\
-          & & \quad\quad \langle\{ A[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
+          & & \quad\quad \langle\{ A[i] \rightarrow [] \}, \langle\rangle\rangle,\\
           & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle\\
-          & & \quad\quad \langle\{ C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\quad \langle\{ C[i] \rightarrow [] \}, \langle\rangle\rangle\\
           & & \quad\rangle \\
           & & \rangle \\
         t'&=& \mathrm{fuse}(t, t[0], t[2], 2) \\
@@ -414,10 +422,13 @@ Let's fuse the first and third children of a schedule tree $t$ into the third ch
 \[
     \begin{array}{lcl}
         t'&=& \langle \\
-          & & \quad\{[i] \rightarrow [] \},\\
+          & & \quad\{A[i] \rightarrow []; B[i] \rightarrow []; C[i] \rightarrow []  \},\\
           & & \quad\langle \\
           & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
-          & & \quad\quad \langle\{ A[i] \rightarrow [i]; C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\quad\langle\\
+          & & \quad\quad\quad\langle\{ A[i] \rightarrow [] \}, \langle\rangle\rangle, \\
+          & & \quad\quad\quad\langle\{ C[i] \rightarrow [] \}, \langle\rangle\rangle \\
+          & & \quad\quad\rangle\\
           & & \quad\rangle \\
           & & \rangle \\
     \end{array}
@@ -432,24 +443,22 @@ fusion}. In terms of schedule, a simple version of loop distribution can be
 expressed as a swap between a constant dimension and a varying dimension.
 
 \[
-    \mathrm{distribute}: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{j+1}
+    \mathrm{distribute}: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{2}
 \]
 
 Its behavior is described as:
 
 \[
-    \mathrm{distribute}(\langle  u, \langle v_0, \ldots, v_k\rangle \rangle, \langle d_0, \ldots, d_j\rangle) = \langle u \cap \mathbb{Z}^{|u|_\mathrm{out}-1}, D\rangle
+    \mathrm{distribute}(\langle  u, \langle v_0, \ldots, v_k\rangle \rangle, \langle d_0, \ldots, d_j\rangle) = \langle \mathrm{trimr}(u), \langle D_d, D_{\bar{d}} \rangle \rangle
 \]
 
 \noindent where:
 
 \[
-    D = \left\langle 
-    \begin{array}{ccl}
-        \langle  u_{-1}, v_i \rangle & \mid & i \in \{ d_0, \ldots, d_j\} \\
-        \langle  u_{-1}, \langle  v_j \mid j \not\in \{ d_0, \ldots, d_j\}\rangle \rangle  & & 
-    \end{array}
-    \right\rangle
+    D_d = \langle u, \langle v_j \mid j \in \{ d_0, \ldots, d_j\}\rangle \rangle
+\]
+\[
+    D_{\bar{d}} = \langle u, \langle v_j \mid j \not\in \{ d_0, \ldots, d_j\}\rangle \rangle
 \]
 
 \subsubsection*{Example}
@@ -459,13 +468,14 @@ Let's distribute the second child of schedule tree $t$:
 \[
     \begin{array}{lcl}
         t &=& \langle \\
-          & & \quad\{[i] \rightarrow [] \},\\
+          & & \quad\{A[i] \rightarrow [i] ; B[i] \rightarrow [i] ; C[i] \rightarrow [i]\},\\
           & & \quad\langle \\
+          & & \quad\quad \langle\{ A[i] \rightarrow [] \}, \langle\rangle\rangle,\\
           & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
-          & & \quad\quad \langle\{ A[i] \rightarrow [i]; C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\quad \langle\{ C[i] \rightarrow [] \}, \langle\rangle\rangle,\\
           & & \quad\rangle \\
           & & \rangle \\
-        t'&=& \mathrm{distribute}(t, 1) \\
+        t'&=& \mathrm{distribute}(t, \langle 1 \rangle) \\
     \end{array}
 \]
 
@@ -474,15 +484,23 @@ Let's distribute the second child of schedule tree $t$:
 \[
     \begin{array}{lcl}
         t'&=& \langle \\
-          & & \quad\{[i] \rightarrow [] \},\\
-          & & \quad\langle \\
-          & & \quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
-          & & \quad\quad \langle\{ A[i] \rightarrow [i] \}, \langle\rangle\rangle\\
-          & & \quad\quad \langle\{ C[i] \rightarrow [i] \}, \langle\rangle\rangle\\
-          & & \quad\rangle \\
+          & & \quad\{A[i] \rightarrow [] ; B[i] \rightarrow [] ; C[i] \rightarrow [] \}, \\
+          & & \quad\langle\\
+          & & \quad\quad\langle \\
+          & & \quad\quad\quad\{A[i] \rightarrow [i] ; B[i] \rightarrow [i] ; C[i] \rightarrow [i] \},\\
+          & & \quad\quad\quad\langle \\
+          & & \quad\quad\quad\quad \langle\{ A[i] \rightarrow [i] \}, \langle\rangle\rangle\\
+          & & \quad\quad\quad\rangle, \\
+          & & \quad\quad\rangle, \\
+          & & \quad\quad\langle \\
+          & & \quad\quad\quad\{A[i] \rightarrow [i] ; B[i] \rightarrow [i] ; C[i] \rightarrow [i]\},\\
+          & & \quad\quad\quad\langle \\
+          & & \quad\quad\quad\quad \langle\{ B[i] \rightarrow [i] \}, \langle\rangle\rangle,\\
+          & & \quad\quad\quad\quad \langle\{ C[i] \rightarrow [] \}, \langle\rangle\rangle,\\
+          & & \quad\quad\quad\rangle \\
+          & & \quad\quad\rangle\\
           & & \rangle \\
     \end{array}
 \]
-\todo{how is the order chosen?}
 
 \end{document}
