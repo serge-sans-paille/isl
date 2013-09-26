@@ -5,9 +5,23 @@
 
 \usepackage{acronym}
 \usepackage{todonotes}
+
 \acrodef{ISL}{Integer Set Library}
 
-\title{Seeds for a Schedule Tree} % Thcs Sven
+\DeclareMathOperator\flaty{flat}
+\DeclareMathOperator\rangeproduct{range\_product}
+\DeclareMathOperator\appenddim{append\_dim}
+\DeclareMathOperator\trimr{trimr}
+\DeclareMathOperator\rel{rel}
+\DeclareMathOperator\chd{chd}
+\DeclareMathOperator\splity{split}
+\DeclareMathOperator\interchange{interchange}
+\DeclareMathOperator\indexsetsplit{index\_set\_split}
+\DeclareMathOperator\tile{tile}
+\DeclareMathOperator\fuse{fuse}
+\DeclareMathOperator\distribute{distribute}
+
+\title{Seeds for a Schedule Tree} % Thxs Sven
 \author{Serge Guelton, Sven Verdoolaeg, Albert Cohen}
 
 \begin{document}
@@ -19,7 +33,7 @@
 This document formalizes the design and some use cases of \emph{schedule
 trees}, a refinement to the concept of \emph{schedule} used in the \ac{ISL}.
 Informally, a schedule tree is an ordered tree where nodes are union sets, with
-a $\mathrm{flat}$ operator to turn a schedule tree into a schedule.
+a $\flaty$ operator to turn a schedule tree into a schedule.
 
 The benefits of using a tree representation over a flat representation for a
 schedule is that it naturally fits the hierarchical structure of some piece of
@@ -62,7 +76,7 @@ a_{n-1}\rangle$.
 The Cartesian product of set $\mathcal{S}$ with itself $n$ times is denoted
 $\mathcal{S}^n$.
 
-$\mathrm{trimr}$ is a function that takes an union map and returns the same union map without out dimensions.\todo{I am very unhappy with the name}
+$\trimr$ is a function that takes an union map and returns the same union map without out dimensions.\todo{I am very unhappy with the name}
 
 \section{Formal Definition}
 
@@ -79,37 +93,37 @@ of all schedule trees, defined as:
 
 \noindent \emph{i.e.}\ a schedule tree holds a union map and any number of children that also are schedule trees.
 
-The function that yields the relation $u$ of a tree is called $\mathrm{rel}:\mathcal{T} \rightarrow \mathcal{U}$.
+The function that yields the relation $u$ of a tree is called $\rel:\mathcal{T} \rightarrow \mathcal{U}$.
 
-The function that yields the children $v$ of a tree is called $\mathrm{chd}:\mathcal{T} \rightarrow \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k$.
+The function that yields the children $v$ of a tree is called $\chd:\mathcal{T} \rightarrow \displaystyle\prod_{k\in\mathbb{N}}\mathcal{T}^k$.
 
 \subsection{Tree to Union Maps}
 
-Given any schedule tree, we define a flattening operation $\mathrm{flat}$
+Given any schedule tree, we define a flattening operation $\flaty$
 
 \[
-    \mathrm{flat}: \mathcal{T} \rightarrow \mathcal{U}
+    \flaty: \mathcal{T} \rightarrow \mathcal{U}
 \]
 
 \noindent such that
 
 \[
     \begin{array}{lcl}
-        \mathrm{flat}(\langle u, \langle\rangle \rangle) &=& u \\
-        \mathrm{flat}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle) &=& \mathrm{range\_product}(u, \bigcup_{k=0}^{k=n} \mathrm{flat}(\mathrm{append\_dim}(k, v_k)) \\
+        \flaty(\langle u, \langle\rangle \rangle) &=& u \\
+        \flaty(\langle u, \langle v_0, \ldots, v_k\rangle \rangle) &=& \rangeproduct(u, \bigcup_{k=0}^{k=n} \flaty(\appenddim(k, v_k)) \\
     \end{array}
 \]
 
-\noindent where $\mathrm{range\_product}$ performs a flat range product between to elements of $\mathcal{U}$ and $\mathrm{append\_dim}$ appends a constant dimension to the out space of a schedule:
+\noindent where $\rangeproduct$ performs a flat range product between to elements of $\mathcal{U}$ and $\appenddim$ appends a constant dimension to the out space of a schedule:
 
 \[
-    \mathrm{range\_product}(A \cap B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
+    \rangeproduct(A \cap B, C \rightarrow D) \rightarrow (A \times C) \rightarrow (B, D)
 \]
 
 \noindent and
 
 \[
-    \mathrm{append\_dim}(k, \langle A \rightarrow B, v\rangle) \rightarrow \langle A \rightarrow (\{k\} \times B), v \rangle
+    \appenddim(k, \langle A \rightarrow B, v\rangle) \rightarrow \langle A \rightarrow (\{k\} \times B), v \rangle
 \]
 
 \subsubsection*{Example}
@@ -131,7 +145,7 @@ For instance, let $t$ be a simple tree:
 Flattening $t$ turns it into a regular union map, where the ordering of the children of the root tree is made explicit:
 
 \[
-    \mathrm{flat}(t) = \{ [i,j] \rightarrow [i,0,j] ; [i,j] \rightarrow [i,1,j] \}
+    \flaty(t) = \{ [i,j] \rightarrow [i,0,j] ; [i,j] \rightarrow [i,1,j] \}
 \]
 
 \subsection{Union Maps to Tree}
@@ -141,13 +155,13 @@ tree, automatically spawning children when all the value of a dimension are
 integer singletons. This is directly related to the definition of a canonical tree\dots} }
 
 \[
-    \mathrm{split}: \mathcal{U} \rightarrow \mathcal{T}
+    \splity: \mathcal{U} \rightarrow \mathcal{T}
 \]
 
 
 
 \section{Schedule Trees Transformations}
-\label{sec:schedule-tree-transformation}
+\label{sec:schedule-tree-transformations}
 
 The primary interest of a tree representation for schedules is that a part of
 the schedule can be updated while leaving the other parts untouched. For instance, consider the following schedule:
@@ -205,13 +219,13 @@ variable. In terms of schedule, it boils down to a permutation of the time
 domain.
 
 \[
-    \mathrm{interchange}: \mathcal{T}_k \rightarrow P \rightarrow \mathcal{T}_k
+    \interchange: \mathcal{T}_k \rightarrow P \rightarrow \mathcal{T}_k
 \]
 
 \noindent where $P$ is the set of domain permutations. Its behavior is described as:
 
 \[
-    \mathrm{interchange}(\langle u, v\rangle, p) = \langle p(u), v\rangle)
+    \interchange(\langle u, v\rangle, p) = \langle p(u), v\rangle)
 \]
 
 \noindent \emph{i.e.}\ it leaves the children of the tree untouched and
@@ -231,7 +245,7 @@ Let's interchange a schedule tree $t$ through the application of permutation $p$
           & & \quad\rangle \\
           & & \rangle \\
         p &=& (x, y, z) \mapsto (y, z, x) \\
-        t'&=& \mathrm{interchange}(t, p) \\
+        t'&=& \interchange(t, p) \\
     \end{array}
 \]
 
@@ -257,13 +271,13 @@ into parts. In terms of schedule, it can be expressed as the duplication of a
 schedule with an additional time constraint.
 
 \[
-    \mathrm{index\_set\_split}: \mathcal{T}_k \rightarrow \mathcal{U} \rightarrow \mathcal{T}_2
+    \indexsetsplit: \mathcal{T}_k \rightarrow \mathcal{U} \rightarrow \mathcal{T}_2
 \]
 
 Its behavior is described as:
 
 \[
-    \mathrm{index\_set\_split}(\langle u, v\rangle, m) = \langle  \mathrm{trimr}(u), \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
+    \indexsetsplit(\langle u, v\rangle, m) = \langle  \trimr(u), \langle  \langle  m(u), v\rangle, \langle  u - m(u), v\rangle \rangle \rangle
 \]
 
 \noindent \emph{i.e.}\ $m$ is used to select part of the time domain that will
@@ -283,7 +297,7 @@ Let's split a schedule tree $t$ according to the union map $m$:
           & & \quad\rangle \\
           & & \rangle \\
         m &=& \{ [x] \rightarrow [x] \mid x < 3 \} \\
-        t'&=& \mathrm{index\_set\_split}(t, m) \\
+        t'&=& \indexsetsplit(t, m) \\
     \end{array}
 \]
 
@@ -313,13 +327,13 @@ generally adds new dimensions to the time space with additional blocking
 constraints. This section is limited to rectangular tiling.\todo{Add offsets ?}
 
 \[
-    \mathrm{tile}: \mathcal{T}_k \rightarrow \mathbb{N}^k \rightarrow \mathcal{T}_1
+    \tile: \mathcal{T}_k \rightarrow \mathbb{N}^k \rightarrow \mathcal{T}_1
 \]
 
 Its behavior is described as:
 
 \[
-    \mathrm{tile}(\langle u, v\rangle, t) = \langle  s_\mathrm{outer}(t)(u), \langle  u, v \rangle \rangle
+    \tile(\langle u, v\rangle, t) = \langle  s_\mathrm{outer}(t)(u), \langle  u, v \rangle \rangle
 \]
 
 \noindent where
@@ -345,7 +359,7 @@ Let's tile a schedule tree $t$ according to the tiles $v$:
           & & \quad\rangle \\
           & & \rangle \\
         v &=& \langle 4, 8 \rangle\\
-        t'&=& \mathrm{tile}(t, v) \\
+        t'&=& \tile(t, v) \\
     \end{array}
 \]
 
@@ -373,13 +387,13 @@ schedule, a simple version of loop fusion can be expressed as a swap between a
 constant dimension and a varying dimension.
 
 \[
-    \mathrm{fuse}:  \mathcal{T}_k \rightarrow  \mathbb{N}^j \rightarrow \mathbb{N} \rightarrow  \mathcal{T}_{k - j + 1}
+    \fuse:  \mathcal{T}_k \rightarrow  \mathbb{N}^j \rightarrow \mathbb{N} \rightarrow  \mathcal{T}_{k - j + 1}
 \]
 
 Its behavior is described as: 
 
 \[
-    \mathrm{fuse}(\langle u, \langle v_0, \ldots, v_k\rangle \rangle, \langle f_0, \ldots, f_j\rangle, t) = \langle  u, \langle F_0, \ldots, F_{k-j+1}\rangle \rangle
+    \fuse(\langle u, \langle v_0, \ldots, v_k\rangle \rangle, \langle f_0, \ldots, f_j\rangle, t) = \langle  u, \langle F_0, \ldots, F_{k-j+1}\rangle \rangle
 \]
 
 \noindent where:
@@ -388,7 +402,7 @@ Its behavior is described as:
     F_i = \left\{
     \begin{array}{c}
          v_i \\
-        \langle \mathrm{rel}(v_0) \cup \ldots \cup \mathrm{rel}(v_j), \langle \mathrm{chd}(v_0), \ldots, \mathrm{chd}(v_j)\rangle  \rangle  \\
+        \langle \rel(v_0) \cup \ldots \cup \rel(v_j), \langle \chd(v_0), \ldots, \chd(v_j)\rangle  \rangle  \\
     \end{array}
     \right|
     \left.
@@ -413,7 +427,7 @@ Let's fuse the first and third children of a schedule tree $t$ into the third ch
           & & \quad\quad \langle\{ C[i] \rightarrow [] \}, \langle\rangle\rangle\\
           & & \quad\rangle \\
           & & \rangle \\
-        t'&=& \mathrm{fuse}(t, t[0], t[2], 2) \\
+        t'&=& \fuse(t, t[0], t[2], 2) \\
     \end{array}
 \]
 
@@ -443,13 +457,13 @@ fusion}. In terms of schedule, a simple version of loop distribution can be
 expressed as a swap between a constant dimension and a varying dimension.
 
 \[
-    \mathrm{distribute}: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{2}
+    \distribute: \mathcal{T}_k \rightarrow \mathbb{N}^j \rightarrow \mathcal{T}_{2}
 \]
 
 Its behavior is described as:
 
 \[
-    \mathrm{distribute}(\langle  u, \langle v_0, \ldots, v_k\rangle \rangle, \langle d_0, \ldots, d_j\rangle) = \langle \mathrm{trimr}(u), \langle D_d, D_{\bar{d}} \rangle \rangle
+    \distribute(\langle  u, \langle v_0, \ldots, v_k\rangle \rangle, \langle d_0, \ldots, d_j\rangle) = \langle \trimr(u), \langle D_d, D_{\bar{d}} \rangle \rangle
 \]
 
 \noindent where:
@@ -475,7 +489,7 @@ Let's distribute the second child of schedule tree $t$:
           & & \quad\quad \langle\{ C[i] \rightarrow [] \}, \langle\rangle\rangle,\\
           & & \quad\rangle \\
           & & \rangle \\
-        t'&=& \mathrm{distribute}(t, \langle 1 \rangle) \\
+        t'&=& \distribute(t, \langle 1 \rangle) \\
     \end{array}
 \]
 
